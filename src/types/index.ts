@@ -142,5 +142,7 @@ export interface DebtPayment {
   amount: number;
   date: string; // YYYY-MM-DD
   description?: string;
+  accountId?: string; // Account the payment was made from
+  transactionId?: string; // ID of the associated spending transaction
 }
 

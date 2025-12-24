@@ -67,7 +67,7 @@ interface StoreActions {
   addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt' | 'currentAmount'>) => void;
   removeSavingsGoal: (id: string) => void;
   updateSavingsGoal: (id: string, goal: Partial<SavingsGoal>) => void;
-  addToSavingsGoal: (goalId: string, amount: number) => void;
+  addToSavingsGoal: (goalId: string, amount: number, date?: string, sourceAccountId?: string) => void;
   getGoalProgress: (goalId: string) => { current: number; target: number; percentage: number };
   // Debt management
   addDebt: (debt: Omit<Debt, 'id' | 'createdAt'>) => void;
@@ -801,7 +801,38 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         }));
       },
 
-      addToSavingsGoal: (goalId, amount) => {
+      addToSavingsGoal: (goalId, amount, date, sourceAccountId) => {
+        const state = get();
+        const goal = state.savingsGoals.find((g) => g.id === goalId);
+        if (!goal) return;
+        
+        const contributionDate = date || new Date().toISOString().split('T')[0];
+        
+        // Create transaction if source account is provided
+        if (sourceAccountId) {
+          if (goal.accountId) {
+            // Goal has a target account: create a transfer from source to target
+            get().transferBetweenAccounts(
+              contributionDate,
+              sourceAccountId,
+              goal.accountId,
+              amount,
+              `Savings goal: ${goal.name}`
+            );
+          } else {
+            // Goal doesn't have a target account: create a spending transaction
+            const transaction: Transaction = {
+              id: `savings-goal-${goalId}-${Date.now()}-${Math.random()}`,
+              type: 'spending',
+              amount,
+              description: `Savings goal: ${goal.name}`,
+              accountId: sourceAccountId,
+            };
+            get().addTransaction(contributionDate, transaction);
+          }
+        }
+        
+        // Update goal amount
         set((state) => ({
           savingsGoals: state.savingsGoals.map((g) =>
             g.id === goalId
@@ -864,9 +895,24 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               : d
           );
           
+          // If accountId is provided, create a spending transaction
+          let transactionId: string | undefined;
+          if (payment.accountId) {
+            const debt = state.debts.find((d) => d.id === payment.debtId);
+            const transaction: Transaction = {
+              id: `debt-payment-tx-${newPayment.id}`,
+              type: 'spending',
+              amount: payment.amount,
+              description: payment.description || `Debt payment: ${debt?.name || 'Debt'}`,
+              accountId: payment.accountId,
+            };
+            transactionId = transaction.id;
+            get().addTransaction(payment.date, transaction);
+          }
+          
           return {
             debts: updatedDebts,
-            debtPayments: [...state.debtPayments, newPayment],
+            debtPayments: [...state.debtPayments, { ...newPayment, transactionId }],
           };
         });
       },
@@ -875,6 +921,11 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         set((state) => {
           const payment = state.debtPayments.find((p) => p.id === paymentId);
           if (!payment) return state;
+          
+          // Remove associated transaction if it exists
+          if (payment.transactionId) {
+            get().removeTransaction(payment.date, payment.transactionId);
+          }
           
           // Restore debt balance
           const updatedDebts = state.debts.map((d) =>

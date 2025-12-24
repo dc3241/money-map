@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Calendar from './components/Calendar';
 import SummaryBar from './components/SummaryBar';
@@ -8,9 +9,12 @@ import Accounts from './components/Accounts';
 import Budgets from './components/Budgets';
 import SavingsGoals from './components/SavingsGoals';
 import DebtTracking from './components/DebtTracking';
+import Login from './components/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 import { useBudgetStore } from './store/useBudgetStore';
+import { useAuthStore } from './store/useAuthStore';
 
-function App() {
+function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt'>('dashboard');
   const [calendarViewType, setCalendarViewType] = useState<'weekly' | 'monthly'>('weekly'); // Default to weekly
@@ -62,6 +66,34 @@ function App() {
         <Reporting />
       )}
     </div>
+  );
+}
+
+function App() {
+  const { user, loading } = useAuthStore();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
