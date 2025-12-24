@@ -1,8 +1,8 @@
 import React from 'react';
 
 interface SidebarProps {
-  currentView: 'dashboard' | 'recurring' | 'reporting' | 'accounts';
-  onViewChange: (view: 'dashboard' | 'recurring' | 'reporting' | 'accounts') => void;
+  currentView: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt';
+  onViewChange: (view: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
@@ -115,6 +115,57 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
           {/* Tooltip */}
           <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
             Accounts
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+          </span>
+        </button>
+        
+        <button
+          onClick={() => onViewChange('budgets')}
+          className={`relative px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button ${
+            currentView === 'budgets'
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+            Budgets
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+          </span>
+        </button>
+        
+        <button
+          onClick={() => onViewChange('goals')}
+          className={`relative px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button ${
+            currentView === 'goals'
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+          <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+            Goals
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+          </span>
+        </button>
+        
+        <button
+          onClick={() => onViewChange('debt')}
+          className={`relative px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button ${
+            currentView === 'debt'
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+            Debt
             <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
           </span>
         </button>

@@ -17,33 +17,37 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   const updateTransaction = useBudgetStore((state) => state.updateTransaction);
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
 
+  const categories = useBudgetStore((state) => state.categories);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>('');
   const [editDescription, setEditDescription] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<string>('');
 
   const dateKey = format(date, 'yyyy-MM-dd');
   // Get dayData from the subscribed days object
   const dayData = days[dateKey] || { date: dateKey, income: [], spending: [] };
   const totals = getDailyTotal(dateKey);
 
-  const handleAddIncome = (amount: number, description: string, accountId?: string) => {
+  const handleAddIncome = (amount: number, description: string, accountId?: string, categoryId?: string) => {
     const transaction: Transaction = {
       id: `${Date.now()}-${Math.random()}`,
       type: 'income',
       amount,
       description,
       accountId,
+      category: categoryId,
     };
     addTransaction(dateKey, transaction);
   };
 
-  const handleAddSpending = (amount: number, description: string, accountId?: string) => {
+  const handleAddSpending = (amount: number, description: string, accountId?: string, categoryId?: string) => {
     const transaction: Transaction = {
       id: `${Date.now()}-${Math.random()}`,
       type: 'spending',
       amount,
       description,
       accountId,
+      category: categoryId,
     };
     addTransaction(dateKey, transaction);
   };
@@ -59,6 +63,7 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
     setEditingId(transaction.id);
     setEditAmount(transaction.amount.toString());
     setEditDescription(transaction.description);
+    setEditCategory(transaction.category || '');
   };
 
   const handleSaveEdit = (transactionId: string) => {
@@ -67,10 +72,12 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
       updateTransaction(dateKey, transactionId, {
         amount: numAmount,
         description: editDescription.trim(),
+        category: editCategory || undefined,
       });
       setEditingId(null);
       setEditAmount('');
       setEditDescription('');
+      setEditCategory('');
     }
   };
 
@@ -78,6 +85,7 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
     setEditingId(null);
     setEditAmount('');
     setEditDescription('');
+    setEditCategory('');
   };
 
   const formatCurrency = (amount: number) => {
@@ -132,6 +140,18 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                         className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-emerald-400"
                         placeholder="Description"
                       />
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-emerald-400"
+                      >
+                        <option value="">No category</option>
+                        {categories.filter(c => c.type === 'income').map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.icon || '📌'} {category.name}
+                          </option>
+                        ))}
+                      </select>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleSaveEdit(transaction.id)}
@@ -152,6 +172,11 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold tabular-nums text-emerald-600">{formatCurrency(transaction.amount)}</div>
                         <div className="text-xs text-gray-600 truncate">{transaction.description}</div>
+                        {transaction.category && (
+                          <div className="text-xs text-gray-500">
+                            {categories.find(c => c.id === transaction.category)?.name || transaction.category}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
                         <button
@@ -210,6 +235,18 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                         className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-red-400"
                         placeholder="Description"
                       />
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-red-400"
+                      >
+                        <option value="">No category</option>
+                        {categories.filter(c => c.type === 'expense').map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.icon || '📌'} {category.name}
+                          </option>
+                        ))}
+                      </select>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleSaveEdit(transaction.id)}
@@ -230,6 +267,11 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold tabular-nums text-rose-600">{formatCurrency(transaction.amount)}</div>
                         <div className="text-xs text-gray-600 truncate">{transaction.description}</div>
+                        {transaction.category && (
+                          <div className="text-xs text-gray-500">
+                            {categories.find(c => c.id === transaction.category)?.name || transaction.category}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
                         <button

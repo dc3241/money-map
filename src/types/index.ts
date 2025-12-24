@@ -3,6 +3,7 @@ export interface Transaction {
   type: 'income' | 'spending' | 'transfer';
   amount: number;
   description: string;
+  category?: string; // Category ID
   accountId?: string; // Account the transaction affects
   transferToAccountId?: string; // For transfer transactions
   isRecurring?: boolean; // Optional flag to mark auto-generated transactions
@@ -86,5 +87,60 @@ export interface BudgetState {
   getDailyTotal: (date: string) => { income: number; spending: number; profit: number };
   getWeeklyTotal: (startDate: Date, endDate: Date) => { income: number; spending: number; profit: number };
   getMonthlyTotal: (year: number, month: number) => { income: number; spending: number; profit: number };
+}
+
+// Category types
+export interface Category {
+  id: string;
+  name: string;
+  type: 'income' | 'expense';
+  color?: string; // For UI display
+  icon?: string; // For UI display
+  createdAt: string;
+}
+
+// Budget types
+export interface Budget {
+  id: string;
+  categoryId: string; // Category ID
+  amount: number; // Budget limit
+  period: 'weekly' | 'monthly' | 'yearly';
+  year: number;
+  month?: number; // For monthly budgets
+  week?: number; // For weekly budgets
+  createdAt: string;
+}
+
+// Savings goal types
+export interface SavingsGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate?: string; // Optional target date
+  accountId?: string; // Link to specific account
+  createdAt: string;
+}
+
+// Debt types
+export interface Debt {
+  id: string;
+  name: string;
+  type: 'credit_card' | 'loan' | 'mortgage' | 'other';
+  principalAmount: number; // Original debt amount
+  currentBalance: number; // Current remaining balance
+  interestRate?: number; // Annual interest rate
+  minimumPayment?: number; // Minimum monthly payment
+  dueDate?: number; // Day of month payment is due
+  accountId?: string; // Link to account if applicable
+  createdAt: string;
+}
+
+export interface DebtPayment {
+  id: string;
+  debtId: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  description?: string;
 }
 

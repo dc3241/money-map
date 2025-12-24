@@ -3,25 +3,30 @@ import { useBudgetStore } from '../store/useBudgetStore';
 
 interface TransactionInputProps {
   type: 'income' | 'spending';
-  onAdd: (amount: number, description: string, accountId?: string) => void;
+  onAdd: (amount: number, description: string, accountId?: string, categoryId?: string) => void;
 }
 
 const TransactionInput: React.FC<TransactionInputProps> = ({ type, onAdd }) => {
   const accounts = useBudgetStore((state) => state.accounts);
+  const categories = useBudgetStore((state) => state.categories);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [categoryId, setCategoryId] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
     if (numAmount > 0 && description.trim()) {
-      onAdd(numAmount, description.trim(), accountId || undefined);
+      onAdd(numAmount, description.trim(), accountId || undefined, categoryId || undefined);
       setAmount('');
       setDescription('');
       setAccountId('');
+      setCategoryId('');
     }
   };
+
+  const relevantCategories = categories.filter(c => c.type === (type === 'income' ? 'income' : 'expense'));
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 mb-2">
@@ -35,6 +40,20 @@ const TransactionInput: React.FC<TransactionInputProps> = ({ type, onAdd }) => {
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>
               {account.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {relevantCategories.length > 0 && (
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 transition-all"
+        >
+          <option value="">Select category (optional)</option>
+          {relevantCategories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.icon || '📌'} {category.name}
             </option>
           ))}
         </select>

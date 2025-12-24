@@ -5,11 +5,14 @@ import SummaryBar from './components/SummaryBar';
 import Recurring from './components/Recurring';
 import Reporting from './components/Reporting';
 import Accounts from './components/Accounts';
+import Budgets from './components/Budgets';
+import SavingsGoals from './components/SavingsGoals';
+import DebtTracking from './components/DebtTracking';
 import { useBudgetStore } from './store/useBudgetStore';
 
 function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt'>('dashboard');
   const [calendarViewType, setCalendarViewType] = useState<'weekly' | 'monthly'>('weekly'); // Default to weekly
   const populateRecurringForMonth = useBudgetStore((state) => state.populateRecurringForMonth);
 
@@ -49,6 +52,12 @@ function App() {
         <Recurring />
       ) : currentView === 'accounts' ? (
         <Accounts />
+      ) : currentView === 'budgets' ? (
+        <Budgets />
+      ) : currentView === 'goals' ? (
+        <SavingsGoals />
+      ) : currentView === 'debt' ? (
+        <DebtTracking />
       ) : (
         <Reporting />
       )}

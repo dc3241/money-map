@@ -3,13 +3,18 @@ import { persist } from 'zustand/middleware';
 import { formatDateKey } from '../utils/dateUtils';
 import { getOccurrencesInMonth, migrateOldRecurringExpense, migrateOldRecurringIncome } from '../utils/recurrenceUtils';
 import { matchesExistingTransaction, matchesRecurringPattern, type StatementTransaction, type ImportResult } from '../utils/statementParser';
-import type { Transaction, DayData, RecurringExpense, RecurringIncome, Account } from '../types';
+import type { Transaction, DayData, RecurringExpense, RecurringIncome, Account, Category, Budget, SavingsGoal, Debt, DebtPayment } from '../types';
 
 interface StoreState {
   days: Record<string, DayData>;
   recurringExpenses: RecurringExpense[];
   recurringIncome: RecurringIncome[];
   accounts: Account[];
+  categories: Category[];
+  budgets: Budget[];
+  savingsGoals: SavingsGoal[];
+  debts: Debt[];
+  debtPayments: DebtPayment[];
 }
 
 interface StoreActions {
@@ -43,6 +48,35 @@ interface StoreActions {
     amount: number,
     description?: string
   ) => void;
+  // Category management
+  addCategory: (category: Omit<Category, 'id' | 'createdAt'>) => void;
+  removeCategory: (id: string) => void;
+  updateCategory: (id: string, category: Partial<Category>) => void;
+  // Budget management
+  addBudget: (budget: Omit<Budget, 'id' | 'createdAt'>) => void;
+  removeBudget: (id: string) => void;
+  updateBudget: (id: string, budget: Partial<Budget>) => void;
+  getBudgetSpending: (budgetId: string, year: number, month?: number) => number;
+  getBudgetStatus: (budgetId: string, year: number, month?: number) => {
+    limit: number;
+    spent: number;
+    remaining: number;
+    percentage: number;
+  };
+  // Savings goals management
+  addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt' | 'currentAmount'>) => void;
+  removeSavingsGoal: (id: string) => void;
+  updateSavingsGoal: (id: string, goal: Partial<SavingsGoal>) => void;
+  addToSavingsGoal: (goalId: string, amount: number) => void;
+  getGoalProgress: (goalId: string) => { current: number; target: number; percentage: number };
+  // Debt management
+  addDebt: (debt: Omit<Debt, 'id' | 'createdAt'>) => void;
+  removeDebt: (id: string) => void;
+  updateDebt: (id: string, debt: Partial<Debt>) => void;
+  addDebtPayment: (payment: Omit<DebtPayment, 'id'>) => void;
+  removeDebtPayment: (paymentId: string) => void;
+  getDebtBalance: (debtId: string) => number;
+  getTotalDebt: () => number;
 }
 
   // Migration function for old data format
@@ -54,6 +88,44 @@ function migrateOldData(state: any): any {
   // Initialize accounts array if it doesn't exist
   if (!newState.accounts) {
     newState.accounts = [];
+  }
+
+  // Initialize new arrays
+  if (!newState.categories) {
+    newState.categories = [
+      { id: 'cat-exp-housing', name: 'Housing', type: 'expense', icon: '🏠', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-utilities', name: 'Utilities', type: 'expense', icon: '⚡', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-food', name: 'Food & Dining', type: 'expense', icon: '🍽️', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-transport', name: 'Transportation', type: 'expense', icon: '🚗', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-insurance', name: 'Insurance', type: 'expense', icon: '🛡️', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-healthcare', name: 'Healthcare', type: 'expense', icon: '🏥', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-entertainment', name: 'Entertainment', type: 'expense', icon: '🎬', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-shopping', name: 'Shopping', type: 'expense', icon: '🛍️', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-bills', name: 'Bills', type: 'expense', icon: '📄', createdAt: new Date().toISOString() },
+      { id: 'cat-exp-other', name: 'Other', type: 'expense', icon: '📌', createdAt: new Date().toISOString() },
+      { id: 'cat-inc-salary', name: 'Salary', type: 'income', icon: '💼', createdAt: new Date().toISOString() },
+      { id: 'cat-inc-freelance', name: 'Freelance', type: 'income', icon: '💻', createdAt: new Date().toISOString() },
+      { id: 'cat-inc-investment', name: 'Investment', type: 'income', icon: '📈', createdAt: new Date().toISOString() },
+      { id: 'cat-inc-rental', name: 'Rental', type: 'income', icon: '🏘️', createdAt: new Date().toISOString() },
+      { id: 'cat-inc-bonus', name: 'Bonus', type: 'income', icon: '🎁', createdAt: new Date().toISOString() },
+      { id: 'cat-inc-other', name: 'Other', type: 'income', icon: '📌', createdAt: new Date().toISOString() },
+    ];
+  }
+  
+  if (!newState.budgets) {
+    newState.budgets = [];
+  }
+  
+  if (!newState.savingsGoals) {
+    newState.savingsGoals = [];
+  }
+  
+  if (!newState.debts) {
+    newState.debts = [];
+  }
+  
+  if (!newState.debtPayments) {
+    newState.debtPayments = [];
   }
 
   // Migrate old recurring expenses format
@@ -82,6 +154,28 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       recurringExpenses: [],
       recurringIncome: [],
       accounts: [],
+      categories: [
+        { id: 'cat-exp-housing', name: 'Housing', type: 'expense', icon: '🏠', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-utilities', name: 'Utilities', type: 'expense', icon: '⚡', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-food', name: 'Food & Dining', type: 'expense', icon: '🍽️', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-transport', name: 'Transportation', type: 'expense', icon: '🚗', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-insurance', name: 'Insurance', type: 'expense', icon: '🛡️', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-healthcare', name: 'Healthcare', type: 'expense', icon: '🏥', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-entertainment', name: 'Entertainment', type: 'expense', icon: '🎬', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-shopping', name: 'Shopping', type: 'expense', icon: '🛍️', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-bills', name: 'Bills', type: 'expense', icon: '📄', createdAt: new Date().toISOString() },
+        { id: 'cat-exp-other', name: 'Other', type: 'expense', icon: '📌', createdAt: new Date().toISOString() },
+        { id: 'cat-inc-salary', name: 'Salary', type: 'income', icon: '💼', createdAt: new Date().toISOString() },
+        { id: 'cat-inc-freelance', name: 'Freelance', type: 'income', icon: '💻', createdAt: new Date().toISOString() },
+        { id: 'cat-inc-investment', name: 'Investment', type: 'income', icon: '📈', createdAt: new Date().toISOString() },
+        { id: 'cat-inc-rental', name: 'Rental', type: 'income', icon: '🏘️', createdAt: new Date().toISOString() },
+        { id: 'cat-inc-bonus', name: 'Bonus', type: 'income', icon: '🎁', createdAt: new Date().toISOString() },
+        { id: 'cat-inc-other', name: 'Other', type: 'income', icon: '📌', createdAt: new Date().toISOString() },
+      ],
+      budgets: [],
+      savingsGoals: [],
+      debts: [],
+      debtPayments: [],
 
       addTransaction: (date: string, transaction: Transaction) => {
         set((state) => {
@@ -570,6 +664,241 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         };
 
         get().addTransaction(date, transaction);
+      },
+
+      // Category management
+      addCategory: (category) => {
+        const newCategory: Category = {
+          ...category,
+          id: `category-${Date.now()}-${Math.random()}`,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          categories: [...state.categories, newCategory],
+        }));
+      },
+
+      removeCategory: (id) => {
+        set((state) => ({
+          categories: state.categories.filter((c) => c.id !== id),
+        }));
+      },
+
+      updateCategory: (id, category) => {
+        set((state) => ({
+          categories: state.categories.map((c) =>
+            c.id === id ? { ...c, ...category } : c
+          ),
+        }));
+      },
+
+      // Budget management
+      addBudget: (budget) => {
+        const newBudget: Budget = {
+          ...budget,
+          id: `budget-${Date.now()}-${Math.random()}`,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          budgets: [...state.budgets, newBudget],
+        }));
+      },
+
+      removeBudget: (id) => {
+        set((state) => ({
+          budgets: state.budgets.filter((b) => b.id !== id),
+        }));
+      },
+
+      updateBudget: (id, budget) => {
+        set((state) => ({
+          budgets: state.budgets.map((b) =>
+            b.id === id ? { ...b, ...budget } : b
+          ),
+        }));
+      },
+
+      getBudgetSpending: (budgetId, year, month) => {
+        const state = get();
+        const budget = state.budgets.find((b) => b.id === budgetId);
+        if (!budget) return 0;
+        
+        let total = 0;
+        Object.keys(state.days).forEach((dateKey) => {
+          const [y, m] = dateKey.split('-').map(Number);
+          const dayData = state.days[dateKey];
+          
+          if (budget.period === 'monthly' && month !== undefined) {
+            if (y === year && m === month) {
+              dayData?.spending.forEach((tx) => {
+                if (tx.category === budget.categoryId) {
+                  total += tx.amount;
+                }
+              });
+            }
+          } else if (budget.period === 'yearly') {
+            if (y === year) {
+              dayData?.spending.forEach((tx) => {
+                if (tx.category === budget.categoryId) {
+                  total += tx.amount;
+                }
+              });
+            }
+          } else if (budget.period === 'weekly') {
+            // For weekly, we'd need to calculate which week of the year
+            // For simplicity, we'll check if it's in the same month for now
+            if (y === year && month !== undefined && m === month) {
+              dayData?.spending.forEach((tx) => {
+                if (tx.category === budget.categoryId) {
+                  total += tx.amount;
+                }
+              });
+            }
+          }
+        });
+        
+        return total;
+      },
+
+      getBudgetStatus: (budgetId, year, month) => {
+        const state = get();
+        const budget = state.budgets.find((b) => b.id === budgetId);
+        if (!budget) {
+          return { limit: 0, spent: 0, remaining: 0, percentage: 0 };
+        }
+        
+        const spent = get().getBudgetSpending(budgetId, year, month);
+        const remaining = budget.amount - spent;
+        const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+        
+        return { limit: budget.amount, spent, remaining, percentage };
+      },
+
+      // Savings goals management
+      addSavingsGoal: (goal) => {
+        const newGoal: SavingsGoal = {
+          ...goal,
+          id: `goal-${Date.now()}-${Math.random()}`,
+          currentAmount: 0,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          savingsGoals: [...state.savingsGoals, newGoal],
+        }));
+      },
+
+      removeSavingsGoal: (id) => {
+        set((state) => ({
+          savingsGoals: state.savingsGoals.filter((g) => g.id !== id),
+        }));
+      },
+
+      updateSavingsGoal: (id, goal) => {
+        set((state) => ({
+          savingsGoals: state.savingsGoals.map((g) =>
+            g.id === id ? { ...g, ...goal } : g
+          ),
+        }));
+      },
+
+      addToSavingsGoal: (goalId, amount) => {
+        set((state) => ({
+          savingsGoals: state.savingsGoals.map((g) =>
+            g.id === goalId
+              ? { ...g, currentAmount: g.currentAmount + amount }
+              : g
+          ),
+        }));
+      },
+
+      getGoalProgress: (goalId) => {
+        const state = get();
+        const goal = state.savingsGoals.find((g) => g.id === goalId);
+        if (!goal) {
+          return { current: 0, target: 0, percentage: 0 };
+        }
+        return {
+          current: goal.currentAmount,
+          target: goal.targetAmount,
+          percentage: goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0,
+        };
+      },
+
+      // Debt management
+      addDebt: (debt) => {
+        const newDebt: Debt = {
+          ...debt,
+          id: `debt-${Date.now()}-${Math.random()}`,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          debts: [...state.debts, newDebt],
+        }));
+      },
+
+      removeDebt: (id) => {
+        set((state) => ({
+          debts: state.debts.filter((d) => d.id !== id),
+          debtPayments: state.debtPayments.filter((p) => p.debtId !== id),
+        }));
+      },
+
+      updateDebt: (id, debt) => {
+        set((state) => ({
+          debts: state.debts.map((d) =>
+            d.id === id ? { ...d, ...debt } : d
+          ),
+        }));
+      },
+
+      addDebtPayment: (payment) => {
+        const newPayment: DebtPayment = {
+          ...payment,
+          id: `debt-payment-${Date.now()}-${Math.random()}`,
+        };
+        set((state) => {
+          // Update debt balance
+          const updatedDebts = state.debts.map((d) =>
+            d.id === payment.debtId
+              ? { ...d, currentBalance: Math.max(0, d.currentBalance - payment.amount) }
+              : d
+          );
+          
+          return {
+            debts: updatedDebts,
+            debtPayments: [...state.debtPayments, newPayment],
+          };
+        });
+      },
+
+      removeDebtPayment: (paymentId) => {
+        set((state) => {
+          const payment = state.debtPayments.find((p) => p.id === paymentId);
+          if (!payment) return state;
+          
+          // Restore debt balance
+          const updatedDebts = state.debts.map((d) =>
+            d.id === payment.debtId
+              ? { ...d, currentBalance: d.currentBalance + payment.amount }
+              : d
+          );
+          
+          return {
+            debts: updatedDebts,
+            debtPayments: state.debtPayments.filter((p) => p.id !== paymentId),
+          };
+        });
+      },
+
+      getDebtBalance: (debtId) => {
+        const state = get();
+        const debt = state.debts.find((d) => d.id === debtId);
+        return debt?.currentBalance || 0;
+      },
+
+      getTotalDebt: () => {
+        const state = get();
+        return state.debts.reduce((sum, debt) => sum + debt.currentBalance, 0);
       },
     }),
     {
