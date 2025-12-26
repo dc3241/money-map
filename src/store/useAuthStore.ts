@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -23,64 +22,56 @@ interface AuthState {
   setError: (error: string | null) => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      loading: true,
-      error: null,
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  loading: true,
+  error: null,
 
-      signIn: async (email: string, password: string) => {
-        try {
-          set({ error: null, loading: true });
-          await signInWithEmailAndPassword(auth, email, password);
-        } catch (error: any) {
-          set({ error: error.message || 'Failed to sign in', loading: false });
-          throw error;
-        }
-      },
-
-      signUp: async (email: string, password: string) => {
-        try {
-          set({ error: null, loading: true });
-          await createUserWithEmailAndPassword(auth, email, password);
-        } catch (error: any) {
-          set({ error: error.message || 'Failed to sign up', loading: false });
-          throw error;
-        }
-      },
-
-      signInWithGoogle: async () => {
-        try {
-          set({ error: null, loading: true });
-          await signInWithPopup(auth, googleProvider);
-        } catch (error: any) {
-          set({ error: error.message || 'Failed to sign in with Google', loading: false });
-          throw error;
-        }
-      },
-
-      logout: async () => {
-        try {
-          await signOut(auth);
-          set({ user: null });
-        } catch (error: any) {
-          set({ error: error.message || 'Failed to logout' });
-        }
-      },
-
-      setUser: (user: User | null) => set({ user, loading: false }),
-      setLoading: (loading: boolean) => set({ loading }),
-      setError: (error: string | null) => set({ error }),
-    }),
-    {
-      name: 'auth-storage',
-      partialize: (state) => ({ user: state.user }),
+  signIn: async (email: string, password: string) => {
+    try {
+      set({ error: null, loading: true });
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to sign in', loading: false });
+      throw error;
     }
-  )
-);
+  },
 
-// Listen to auth state changes
+  signUp: async (email: string, password: string) => {
+    try {
+      set({ error: null, loading: true });
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to sign up', loading: false });
+      throw error;
+    }
+  },
+
+  signInWithGoogle: async () => {
+    try {
+      set({ error: null, loading: true });
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to sign in with Google', loading: false });
+      throw error;
+    }
+  },
+
+  logout: async () => {
+    try {
+      await signOut(auth);
+      set({ user: null });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to logout' });
+    }
+  },
+
+  setUser: (user: User | null) => set({ user, loading: false }),
+  setLoading: (loading: boolean) => set({ loading }),
+  setError: (error: string | null) => set({ error }),
+}));
+
+// Listen to auth state changes - Firebase handles persistence automatically
 onAuthStateChanged(auth, (user) => {
   useAuthStore.getState().setUser(user);
 });

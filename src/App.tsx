@@ -10,6 +10,7 @@ import Budgets from './components/Budgets';
 import SavingsGoals from './components/SavingsGoals';
 import DebtTracking from './components/DebtTracking';
 import Login from './components/Login';
+import Home from './components/Home';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useBudgetStore } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
@@ -83,9 +84,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route
-          path="/*"
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
