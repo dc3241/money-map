@@ -7,7 +7,6 @@ const Budgets: React.FC = () => {
   const categories = useBudgetStore((state) => state.categories);
   const addBudget = useBudgetStore((state) => state.addBudget);
   const removeBudget = useBudgetStore((state) => state.removeBudget);
-  const updateBudget = useBudgetStore((state) => state.updateBudget);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
   
   const [showAddModal, setShowAddModal] = useState(false);

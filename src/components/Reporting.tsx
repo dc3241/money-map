@@ -74,7 +74,6 @@ const Reporting: React.FC = () => {
 
   // Calculate averages
   const averages = useMemo(() => {
-    const monthsWithData = monthlyBreakdown.filter(m => m.income > 0 || m.spending > 0).length || 1;
     const daysInYear = new Date(selectedYear, 1, 29).getMonth() === 1 ? 366 : 365; // Handle leap year
     return {
       monthlyIncome: annualTotals.income / 12,
@@ -312,7 +311,7 @@ const Reporting: React.FC = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
               <Legend />
               <Line type="monotone" dataKey="Income" stroke="#10b981" strokeWidth={2} />
               <Line type="monotone" dataKey="Spending" stroke="#ef4444" strokeWidth={2} />
@@ -329,7 +328,7 @@ const Reporting: React.FC = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
               <Legend />
               <Bar dataKey="Income" fill="#10b981" />
               <Bar dataKey="Spending" fill="#ef4444" />
@@ -449,7 +448,7 @@ const Reporting: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={150} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
                 <Bar dataKey="value" fill="#ef4444" />
               </BarChart>
             </ResponsiveContainer>
@@ -465,7 +464,7 @@ const Reporting: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" />
                 <YAxis dataKey="name" type="category" width={150} />
-                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
                 <Bar dataKey="value" fill="#10b981" />
               </BarChart>
             </ResponsiveContainer>
@@ -508,16 +507,16 @@ const Reporting: React.FC = () => {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
                         outerRadius={70}
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {recurringVsOneTimeData.map((entry, index) => (
+                        {recurringVsOneTimeData.map((_entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                      <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

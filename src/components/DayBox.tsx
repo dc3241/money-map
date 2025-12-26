@@ -1,7 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { useBudgetStore } from '../store/useBudgetStore';
-import type { DayData } from '../types';
 
 interface DayBoxProps {
   date: Date;

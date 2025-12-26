@@ -1,6 +1,6 @@
 import React from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
-import { getWeekRange, getMonthRange } from '../utils/dateUtils';
+import { getWeekRange } from '../utils/dateUtils';
 import { format } from 'date-fns';
 
 interface SummaryBarProps {
@@ -11,10 +11,9 @@ const SummaryBar: React.FC<SummaryBarProps> = ({ currentDate }) => {
   const getWeeklyTotal = useBudgetStore((state) => state.getWeeklyTotal);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
   // Subscribe to days to trigger re-render when transactions change
-  const days = useBudgetStore((state) => state.days);
+  useBudgetStore((state) => state.days);
 
   const weekRange = getWeekRange(currentDate);
-  const monthRange = getMonthRange(currentDate);
   
   const weekly = getWeeklyTotal(weekRange.start, weekRange.end);
   const monthly = getMonthlyTotal(currentDate.getFullYear(), currentDate.getMonth() + 1);

@@ -39,7 +39,6 @@ const SavingsGoals: React.FC = () => {
   const accounts = useBudgetStore((state) => state.accounts);
   const addSavingsGoal = useBudgetStore((state) => state.addSavingsGoal);
   const removeSavingsGoal = useBudgetStore((state) => state.removeSavingsGoal);
-  const updateSavingsGoal = useBudgetStore((state) => state.updateSavingsGoal);
   const addToSavingsGoal = useBudgetStore((state) => state.addToSavingsGoal);
   const getGoalProgress = useBudgetStore((state) => state.getGoalProgress);
   

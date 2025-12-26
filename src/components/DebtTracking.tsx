@@ -36,7 +36,6 @@ const DebtTracking: React.FC = () => {
   const accounts = useBudgetStore((state) => state.accounts);
   const addDebt = useBudgetStore((state) => state.addDebt);
   const removeDebt = useBudgetStore((state) => state.removeDebt);
-  const updateDebt = useBudgetStore((state) => state.updateDebt);
   const addDebtPayment = useBudgetStore((state) => state.addDebtPayment);
   const getTotalDebt = useBudgetStore((state) => state.getTotalDebt);
   
