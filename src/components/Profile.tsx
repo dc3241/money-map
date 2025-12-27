@@ -74,7 +74,7 @@ export default function Profile() {
   const displayError = localError || error;
 
   return (
-    <div className="h-full overflow-y-auto bg-gradient-to-br from-slate-50 to-white p-8">
+    <div className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 to-white p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
