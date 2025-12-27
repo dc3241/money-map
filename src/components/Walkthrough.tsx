@@ -1,12 +1,11 @@
-import React from 'react';
 import { useWalkthroughStore, WalkthroughTask } from '../store/useWalkthroughStore';
 
 interface WalkthroughProps {
-  currentView: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt';
-  onNavigate: (view: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt') => void;
+  currentView: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile';
+  onNavigate: (view: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile') => void;
 }
 
-export default function Walkthrough({ currentView, onNavigate }: WalkthroughProps) {
+export default function Walkthrough({ onNavigate }: WalkthroughProps) {
   const { tasks, isCompleted, isLoading, checkTask, skipWalkthrough, completeWalkthrough } = useWalkthroughStore();
 
   if (isLoading || isCompleted) {

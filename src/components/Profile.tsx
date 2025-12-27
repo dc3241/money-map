@@ -75,7 +75,7 @@ export default function Profile() {
 
   return (
     <div className="h-full overflow-y-auto bg-gradient-to-br from-slate-50 to-white p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">Profile Settings</h1>
