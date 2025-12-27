@@ -5,6 +5,10 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   User
 } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
@@ -17,6 +21,8 @@ interface AuthState {
   signUp: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (displayName: string) => Promise<void>;
+  updatePassword: (newPassword: string, currentPassword: string) => Promise<void>;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -63,6 +69,38 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: null });
     } catch (error: any) {
       set({ error: error.message || 'Failed to logout' });
+    }
+  },
+
+  updateProfile: async (displayName: string) => {
+    try {
+      set({ error: null, loading: true });
+      const { user } = useAuthStore.getState();
+      if (!user) throw new Error('No user logged in');
+      await updateProfile(user, { displayName: displayName.trim() });
+      set({ loading: false });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to update profile', loading: false });
+      throw error;
+    }
+  },
+
+  updatePassword: async (newPassword: string, currentPassword: string) => {
+    try {
+      set({ error: null, loading: true });
+      const { user } = useAuthStore.getState();
+      if (!user || !user.email) throw new Error('No user logged in');
+      
+      // Re-authenticate first
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      // Update password
+      await updatePassword(user, newPassword);
+      set({ loading: false });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to update password', loading: false });
+      throw error;
     }
   },
 

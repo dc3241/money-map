@@ -12,14 +12,30 @@ import DebtTracking from './components/DebtTracking';
 import Login from './components/Login';
 import Home from './components/Home';
 import ProtectedRoute from './components/ProtectedRoute';
+import Walkthrough from './components/Walkthrough';
+import Profile from './components/Profile';
 import { useBudgetStore } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
+import { useWalkthroughStore } from './store/useWalkthroughStore';
+import { useWalkthroughAutoComplete } from './hooks/useWalkthroughAutoComplete';
 
 function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile'>('dashboard');
   const [calendarViewType, setCalendarViewType] = useState<'weekly' | 'monthly'>('weekly'); // Default to weekly
   const populateRecurringForMonth = useBudgetStore((state) => state.populateRecurringForMonth);
+  const { user } = useAuthStore();
+  const { initializeWalkthrough, isCompleted, isLoading } = useWalkthroughStore();
+
+  // Initialize walkthrough when user is loaded
+  useEffect(() => {
+    if (user) {
+      initializeWalkthrough();
+    }
+  }, [user, initializeWalkthrough]);
+
+  // Auto-complete tasks based on user actions
+  useWalkthroughAutoComplete();
 
   // Auto-populate recurring items when viewing a month
   useEffect(() => {
@@ -31,7 +47,7 @@ function Dashboard() {
   }, [currentDate, currentView, populateRecurringForMonth]);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 relative">
       {/* Left Sidebar */}
       <Sidebar currentView={currentView} onViewChange={setCurrentView} />
 
@@ -63,8 +79,15 @@ function Dashboard() {
         <SavingsGoals />
       ) : currentView === 'debt' ? (
         <DebtTracking />
+      ) : currentView === 'profile' ? (
+        <Profile />
       ) : (
         <Reporting />
+      )}
+
+      {/* Walkthrough Overlay */}
+      {!isCompleted && !isLoading && (
+        <Walkthrough currentView={currentView} onNavigate={setCurrentView} />
       )}
     </div>
   );

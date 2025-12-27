@@ -2,8 +2,8 @@ import React from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 
 interface SidebarProps {
-  currentView: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt';
-  onViewChange: (view: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt') => void;
+  currentView: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile';
+  onViewChange: (view: 'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile') => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
@@ -205,8 +205,39 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
         </button>
       </nav>
       
-      {/* Logout Button */}
-      <div className="mt-auto w-full px-2">
+      {/* Profile and Logout Buttons */}
+      <div className="mt-auto w-full px-2 space-y-3">
+        {/* Profile Button */}
+        <button
+          onClick={() => onViewChange('profile')}
+          className={`relative w-full px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button ${
+            currentView === 'profile'
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'text-slate-300 hover:bg-slate-800'
+          }`}
+        >
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            />
+          </svg>
+          
+          <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+            Profile
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+          </span>
+        </button>
+
+        {/* Logout Button */}
         <button
           onClick={logout}
           className="w-full px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button text-slate-300 hover:bg-red-900/20 hover:text-red-400"
@@ -239,4 +270,5 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
 };
 
 export default Sidebar;
+
 
