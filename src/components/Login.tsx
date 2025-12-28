@@ -50,7 +50,7 @@ export default function Login() {
       <div className="max-w-md w-full mx-4">
         <div className="bg-white rounded-lg shadow-xl p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Money Map</h1>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Money Maps</h1>
             <p className="text-gray-600">
               {isSignUp ? 'Create your account' : 'Sign in to your account'}
             </p>

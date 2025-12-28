@@ -76,7 +76,7 @@ export default function Home() {
                   <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2"/>
                 </g>
               </svg>
-              <span className="text-2xl font-bold text-slate-100">Money Map</span>
+              <span className="text-2xl font-bold text-slate-100">Money Maps</span>
             </div>
             {user ? (
               <Link
@@ -151,7 +151,7 @@ export default function Home() {
             Completely Free. No Hidden Costs.
           </h2>
           <p className="text-xl text-slate-300 mb-6 max-w-2xl mx-auto">
-            We believe financial tools should be accessible to everyone. That's why Money Map is completely free—no subscriptions, no premium tiers, no catch.
+            We believe financial tools should be accessible to everyone. That's why Money Maps is completely free—no subscriptions, no premium tiers, no catch.
           </p>
           {!user && (
             <Link
@@ -177,7 +177,7 @@ export default function Home() {
               Your Privacy is Our Priority
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Money Map is built with your privacy and financial discipline in mind.
+              Money Maps is built with your privacy and financial discipline in mind.
             </p>
           </div>
           
@@ -244,7 +244,7 @@ export default function Home() {
               See It In Action
             </h2>
             <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-              Get a glimpse of how Money Map helps you visualize and manage your finances.
+              Get a glimpse of how Money Maps helps you visualize and manage your finances.
             </p>
           </div>
 
@@ -435,10 +435,10 @@ export default function Home() {
                   <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2"/>
                 </g>
               </svg>
-              <span className="text-xl font-bold text-slate-100">Money Map</span>
+              <span className="text-xl font-bold text-slate-100">Money Maps</span>
             </div>
             <p className="text-slate-400">
-              © {new Date().getFullYear()} Money Map. Free forever.
+              © {new Date().getFullYear()} Money Maps. Free forever.
             </p>
           </div>
         </div>

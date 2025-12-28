@@ -55,7 +55,7 @@ export default function Walkthrough({ onNavigate }: WalkthroughProps) {
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-4">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-bold">Welcome to Money Map! 🎉</h3>
+          <h3 className="text-lg font-bold">Welcome to Money Maps! 🎉</h3>
           <button
             onClick={skipWalkthrough}
             className="text-white/80 hover:text-white transition-colors"

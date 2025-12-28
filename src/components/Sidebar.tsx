@@ -13,7 +13,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
     <div className="w-16 bg-slate-900 text-slate-100 h-full flex flex-col items-center py-4 shadow-lg relative group">
       <div className="mb-6">
         <svg width="40" height="40" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10">
-          {/* Money Map Logo - Slate + Emerald */}
+          {/* Money Maps Logo - Slate + Emerald */}
           <rect width="120" height="120" fill="#334155" rx="20"/>
           <g transform="translate(30, 30)">
             <rect x="0" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
