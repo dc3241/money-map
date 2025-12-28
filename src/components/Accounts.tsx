@@ -109,7 +109,12 @@ const Accounts: React.FC = () => {
     return balance > largestBalance ? account : largest;
   }, accounts[0]);
   
-  const totalInitial = accounts.reduce((sum, account) => sum + account.initialBalance, 0);
+  const totalInitial = accounts.reduce((sum, account) => {
+    if (account.type === 'credit_card') {
+      return sum - account.initialBalance; // Subtract credit card initial balances (they're debt)
+    }
+    return sum + account.initialBalance; // Add asset account initial balances
+  }, 0);
   const balanceChange = totalBalance - totalInitial;
 
   return (
@@ -147,7 +152,7 @@ const Accounts: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
                 <div className="text-sm text-gray-600 mb-1">Total Balance</div>
-                <div className="text-3xl font-bold text-emerald-600">{formatCurrency(totalBalance)}</div>
+                <div className={`text-3xl font-bold ${totalBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(totalBalance)}</div>
               </div>
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
                 <div className="text-sm text-gray-600 mb-1">Number of Accounts</div>
