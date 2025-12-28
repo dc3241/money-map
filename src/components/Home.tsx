@@ -102,7 +102,7 @@ export default function Home() {
         <div className="text-center">
           <div className="inline-block mb-4">
             <span className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-semibold border border-emerald-500/30">
-              100% Free Forever
+              100% Free
             </span>
           </div>
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 mb-6 leading-tight">
@@ -144,7 +144,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Free Forever Banner */}
+      {/* Free Banner */}
       <section className="bg-slate-900 py-12 mb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-slate-100 mb-4">
@@ -438,7 +438,7 @@ export default function Home() {
               <span className="text-xl font-bold text-slate-100">Money Maps</span>
             </div>
             <p className="text-slate-400">
-              © {new Date().getFullYear()} Money Maps. Free forever.
+              © {new Date().getFullYear()} Money Maps. 100% Free.
             </p>
           </div>
         </div>

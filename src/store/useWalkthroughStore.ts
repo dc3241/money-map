@@ -139,6 +139,9 @@ export const useWalkthroughStore = create<WalkthroughState>((set, get) => ({
   },
 
   completeWalkthrough: async () => {
+    // Set state immediately for better UX, then save to Firestore
+    set({ isCompleted: true });
+    
     const { user } = useAuthStore.getState();
     if (!user) return;
 
@@ -148,10 +151,9 @@ export const useWalkthroughStore = create<WalkthroughState>((set, get) => ({
         walkthroughCompleted: true,
         walkthroughCompletedAt: new Date().toISOString(),
       }, { merge: true });
-
-      set({ isCompleted: true });
     } catch (error) {
-      console.error('Error completing walkthrough:', error);
+      console.error('Error saving completion to Firestore:', error);
+      // State is already updated, so user experience is not affected
     }
   },
 

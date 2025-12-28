@@ -37,7 +37,7 @@ interface StoreActions {
   // Statement import
   importStatements: (transactions: StatementTransaction[]) => ImportResult;
   // Account management
-  addAccount: (account: Omit<Account, 'id' | 'createdAt'>) => void;
+  addAccount: (account: Omit<Account, 'id' | 'createdAt'>, alsoTrackAsDebt?: boolean) => void;
   removeAccount: (id: string) => void;
   updateAccount: (id: string, account: Partial<Account>) => void;
   getAccountBalance: (accountId: string, asOfDate?: Date) => number;
@@ -188,11 +188,67 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             updatedDayData.spending = [...updatedDayData.spending, transaction];
           }
 
+          // Sync debt balance if transaction affects a credit card account
+          let updatedDebts = state.debts;
+          const creditCardAccountIds = new Set<string>();
+          
+          // Check if transaction affects a credit card account
+          if (transaction.accountId) {
+            const account = state.accounts.find(a => a.id === transaction.accountId);
+            if (account && account.type === 'credit_card') {
+              creditCardAccountIds.add(transaction.accountId);
+            }
+          }
+          // Also check transfer destination
+          if (transaction.type === 'transfer' && transaction.transferToAccountId) {
+            const toAccount = state.accounts.find(a => a.id === transaction.transferToAccountId);
+            if (toAccount && toAccount.type === 'credit_card') {
+              creditCardAccountIds.add(transaction.transferToAccountId);
+            }
+          }
+          
+          // Update debt balances for affected credit cards
+          creditCardAccountIds.forEach(accountId => {
+            const linkedDebt = state.debts.find(d => d.accountId === accountId);
+            if (linkedDebt) {
+              // Calculate current balance before transaction
+              const currentBalance = get().getAccountBalance(accountId);
+              // Calculate new balance after transaction
+              let newBalance = currentBalance;
+              const account = state.accounts.find(a => a.id === accountId);
+              
+              if (account && account.type === 'credit_card') {
+                if (transaction.accountId === accountId) {
+                  // Transaction directly affects this credit card
+                  if (transaction.type === 'income') {
+                    newBalance -= transaction.amount; // Payment reduces debt
+                  } else if (transaction.type === 'spending') {
+                    newBalance += transaction.amount; // Spending increases debt
+                  } else if (transaction.type === 'transfer') {
+                    // Transfer out from credit card (cash advance) increases debt
+                    newBalance += transaction.amount;
+                  }
+                } else if (transaction.transferToAccountId === accountId) {
+                  // Transfer to credit card (payment) decreases debt
+                  newBalance -= transaction.amount;
+                }
+              }
+              
+              // Update debt balance
+              updatedDebts = updatedDebts.map(d =>
+                d.id === linkedDebt.id
+                  ? { ...d, currentBalance: Math.abs(newBalance) }
+                  : d
+              );
+            }
+          });
+
           return {
             days: {
               ...state.days,
               [date]: updatedDayData,
             },
+            debts: updatedDebts,
           };
         });
       },
@@ -202,17 +258,39 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           const dayData = state.days[date];
           if (!dayData) return state;
 
+          // Find the transaction being removed to check if it affects a credit card
+          const transaction = [...dayData.income, ...dayData.spending].find(t => t.id === transactionId);
+          
           const updatedDayData = {
             ...dayData,
             income: dayData.income.filter((t) => t.id !== transactionId),
             spending: dayData.spending.filter((t) => t.id !== transactionId),
           };
 
+          // Sync debt balance if transaction affected a credit card account
+          let updatedDebts = state.debts;
+          if (transaction?.accountId) {
+            const account = state.accounts.find(a => a.id === transaction.accountId);
+            if (account && account.type === 'credit_card') {
+              const linkedDebt = state.debts.find(d => d.accountId === transaction.accountId);
+              if (linkedDebt) {
+                // After removing transaction, recalculate balance
+                const accountBalance = get().getAccountBalance(transaction.accountId);
+                updatedDebts = state.debts.map(d =>
+                  d.id === linkedDebt.id
+                    ? { ...d, currentBalance: Math.abs(accountBalance) }
+                    : d
+                );
+              }
+            }
+          }
+
           return {
             days: {
               ...state.days,
               [date]: updatedDayData,
             },
+            debts: updatedDebts,
           };
         });
       },
@@ -224,6 +302,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
 
           const updatedDayData = { ...dayData };
           
+          // Find the original transaction to check account
+          const originalTransaction = [...dayData.income, ...dayData.spending].find(t => t.id === transactionId);
+          const accountId = transaction.accountId ?? originalTransaction?.accountId;
+          
           // Find and update in income or spending array
           const updateInArray = (arr: Transaction[]) => {
             return arr.map((t) => (t.id === transactionId ? { ...t, ...transaction } : t));
@@ -232,11 +314,29 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           updatedDayData.income = updateInArray(dayData.income);
           updatedDayData.spending = updateInArray(dayData.spending);
 
+          // Sync debt balance if transaction affects a credit card account
+          let updatedDebts = state.debts;
+          if (accountId) {
+            const account = state.accounts.find(a => a.id === accountId);
+            if (account && account.type === 'credit_card') {
+              const linkedDebt = state.debts.find(d => d.accountId === accountId);
+              if (linkedDebt) {
+                const accountBalance = get().getAccountBalance(accountId);
+                updatedDebts = state.debts.map(d =>
+                  d.id === linkedDebt.id
+                    ? { ...d, currentBalance: Math.abs(accountBalance) }
+                    : d
+                );
+              }
+            }
+          }
+
           return {
             days: {
               ...state.days,
               [date]: updatedDayData,
             },
+            debts: updatedDebts,
           };
         });
       },
@@ -567,15 +667,35 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       },
 
       // Account management
-      addAccount: (account) => {
+      addAccount: (account, alsoTrackAsDebt = true) => {
         const newAccount: Account = {
           ...account,
           id: `account-${Date.now()}-${Math.random()}`,
           createdAt: new Date().toISOString(),
         };
-        set((state) => ({
-          accounts: [...state.accounts, newAccount],
-        }));
+        set((state) => {
+          const updatedAccounts = [...state.accounts, newAccount];
+          let updatedDebts = state.debts;
+          
+          // Auto-create debt entry for credit cards if alsoTrackAsDebt is true
+          if (account.type === 'credit_card' && alsoTrackAsDebt) {
+            const newDebt: Debt = {
+              id: `debt-${Date.now()}-${Math.random()}`,
+              name: account.name,
+              type: 'credit_card',
+              principalAmount: account.initialBalance,
+              currentBalance: account.initialBalance,
+              accountId: newAccount.id,
+              createdAt: new Date().toISOString(),
+            };
+            updatedDebts = [...state.debts, newDebt];
+          }
+          
+          return {
+            accounts: updatedAccounts,
+            debts: updatedDebts,
+          };
+        });
       },
 
       removeAccount: (id) => {
@@ -619,10 +739,20 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           allTransactions.forEach((transaction) => {
             // Regular income/spending affecting this account
             if (transaction.accountId === accountId) {
-              if (transaction.type === 'income') {
-                balance += transaction.amount;
-              } else if (transaction.type === 'spending') {
-                balance -= transaction.amount;
+              // For credit cards, spending increases balance (more debt), payments decrease it (less debt)
+              if (account.type === 'credit_card') {
+                if (transaction.type === 'income') {
+                  balance -= transaction.amount; // Payment reduces debt
+                } else if (transaction.type === 'spending') {
+                  balance += transaction.amount; // Spending increases debt
+                }
+              } else {
+                // For other accounts, normal logic
+                if (transaction.type === 'income') {
+                  balance += transaction.amount;
+                } else if (transaction.type === 'spending') {
+                  balance -= transaction.amount;
+                }
               }
             }
 
@@ -632,7 +762,11 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               transaction.accountId === accountId &&
               transaction.transferToAccountId
             ) {
-              balance -= transaction.amount;
+              if (account.type === 'credit_card') {
+                balance += transaction.amount; // Transfer out from credit card increases debt (cash advance)
+              } else {
+                balance -= transaction.amount; // Transfer out from other accounts decreases balance
+              }
             }
 
             // Transfer in to this account
@@ -640,7 +774,11 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               transaction.type === 'transfer' &&
               transaction.transferToAccountId === accountId
             ) {
-              balance += transaction.amount;
+              if (account.type === 'credit_card') {
+                balance -= transaction.amount; // Transfer to credit card decreases debt (payment)
+              } else {
+                balance += transaction.amount; // Transfer to other accounts increases balance
+              }
             }
           });
         });

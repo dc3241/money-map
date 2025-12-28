@@ -50,6 +50,22 @@ export default function Walkthrough({ onNavigate }: WalkthroughProps) {
     }, 500);
   };
 
+  const handleSkip = async () => {
+    try {
+      await skipWalkthrough();
+    } catch (error) {
+      console.error('Error skipping walkthrough:', error);
+    }
+  };
+
+  const handleComplete = async () => {
+    try {
+      await completeWalkthrough();
+    } catch (error) {
+      console.error('Error completing walkthrough:', error);
+    }
+  };
+
   return (
     <div className="fixed top-4 right-4 bg-white rounded-lg shadow-xl border border-slate-200 z-50 w-96 max-h-[80vh] overflow-hidden flex flex-col">
       {/* Header */}
@@ -57,7 +73,7 @@ export default function Walkthrough({ onNavigate }: WalkthroughProps) {
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-bold">Welcome to Money Maps! 🎉</h3>
           <button
-            onClick={skipWalkthrough}
+            onClick={handleSkip}
             className="text-white/80 hover:text-white transition-colors"
             aria-label="Skip walkthrough"
           >
@@ -147,7 +163,7 @@ export default function Walkthrough({ onNavigate }: WalkthroughProps) {
       <div className="border-t border-slate-200 p-4 bg-slate-50">
         {completedCount === totalTasks ? (
           <button
-            onClick={completeWalkthrough}
+            onClick={handleComplete}
             className="w-full bg-emerald-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-emerald-600 transition-colors"
           >
             Complete & Get Started! 🚀
@@ -161,7 +177,7 @@ export default function Walkthrough({ onNavigate }: WalkthroughProps) {
               Mark All Complete
             </button>
             <button
-              onClick={skipWalkthrough}
+              onClick={handleSkip}
               className="flex-1 bg-white text-slate-700 py-2 px-4 rounded-lg font-medium hover:bg-slate-50 transition-colors border border-slate-300 text-sm"
             >
               Skip

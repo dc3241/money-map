@@ -30,6 +30,7 @@ const Accounts: React.FC = () => {
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountType, setNewAccountType] = useState<AccountType>('checking');
   const [newAccountBalance, setNewAccountBalance] = useState('');
+  const [alsoTrackAsDebt, setAlsoTrackAsDebt] = useState(true);
 
   // Transfer form state
   const [transferFrom, setTransferFrom] = useState('');
@@ -55,10 +56,11 @@ const Accounts: React.FC = () => {
         name: newAccountName.trim(),
         type: newAccountType,
         initialBalance: balance,
-      });
+      }, newAccountType === 'credit_card' ? alsoTrackAsDebt : false);
       setNewAccountName('');
       setNewAccountType('checking');
       setNewAccountBalance('');
+      setAlsoTrackAsDebt(true);
       setShowAddModal(false);
     }
   };
@@ -86,14 +88,19 @@ const Accounts: React.FC = () => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
   };
 
   // Calculate summary statistics
+  // Credit cards are debt, so subtract them from total balance
   const totalBalance = accounts.reduce((sum, account) => {
-    return sum + getAccountBalance(account.id);
+    const balance = getAccountBalance(account.id);
+    if (account.type === 'credit_card') {
+      return sum - balance; // Subtract credit card balances (they're debt)
+    }
+    return sum + balance; // Add asset account balances
   }, 0);
   
   const largestAccount = accounts.reduce((largest, account) => {
@@ -214,9 +221,14 @@ const Accounts: React.FC = () => {
                       
                       {/* Balance Display */}
                       <div className="mt-6">
-                        <div className="text-sm text-white/80 mb-1">Current Balance</div>
+                        <div className="text-sm text-white/80 mb-1">
+                          {account.type === 'credit_card' ? 'Amount Owed' : 'Current Balance'}
+                        </div>
                         <div className="text-4xl font-bold tabular-nums">
-                          {formatCurrency(balance)}
+                          {account.type === 'credit_card' 
+                            ? formatCurrency(-balance) // Show credit card balance as negative (debt)
+                            : formatCurrency(balance)
+                          }
                         </div>
                       </div>
                     </div>
@@ -226,9 +238,14 @@ const Accounts: React.FC = () => {
                   <div className="p-6">
                     <div className="space-y-3">
                       <div className="flex justify-between items-baseline pt-2 border-t border-gray-100">
-                        <span className="text-sm text-gray-600">Initial Balance</span>
+                        <span className="text-sm text-gray-600">
+                          {account.type === 'credit_card' ? 'Initial Balance Owed' : 'Initial Balance'}
+                        </span>
                         <span className="text-lg font-semibold text-gray-900">
-                          {formatCurrency(account.initialBalance)}
+                          {account.type === 'credit_card'
+                            ? formatCurrency(-account.initialBalance)
+                            : formatCurrency(account.initialBalance)
+                          }
                         </span>
                       </div>
                       {balanceChange !== 0 && (
@@ -312,7 +329,7 @@ const Accounts: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Current Balance
+                    {newAccountType === 'credit_card' ? 'Current Balance Owed' : 'Current Balance'}
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
@@ -326,6 +343,23 @@ const Accounts: React.FC = () => {
                     />
                   </div>
                 </div>
+                {newAccountType === 'credit_card' && (
+                  <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <input
+                      type="checkbox"
+                      id="trackAsDebt"
+                      checked={alsoTrackAsDebt}
+                      onChange={(e) => setAlsoTrackAsDebt(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="trackAsDebt" className="flex-1 text-sm text-gray-700 cursor-pointer">
+                      <span className="font-semibold">Also track as debt</span>
+                      <span className="block text-gray-600 mt-1">
+                        Automatically add this credit card to Debt Tracking for payment management, interest tracking, and due dates.
+                      </span>
+                    </label>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleAddAccount}
@@ -338,6 +372,7 @@ const Accounts: React.FC = () => {
                       setShowAddModal(false);
                       setNewAccountName('');
                       setNewAccountBalance('');
+                      setAlsoTrackAsDebt(true);
                     }}
                     className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
                   >
