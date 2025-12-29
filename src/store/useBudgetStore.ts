@@ -245,36 +245,69 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           }
           
           // Update debt balances for affected credit cards
+          // Create a temporary state with the new transaction to calculate accurate balance
+          const tempDays = {
+            ...state.days,
+            [date]: updatedDayData,
+          };
+          
           creditCardAccountIds.forEach(accountId => {
             const linkedDebt = state.debts.find(d => d.accountId === accountId);
             if (linkedDebt) {
-              // Calculate current balance before transaction
-              const currentBalance = get().getAccountBalance(accountId);
-              // Calculate new balance after transaction
-              let newBalance = currentBalance;
+              // Recalculate balance from scratch including the new transaction
               const account = state.accounts.find(a => a.id === accountId);
+              if (!account) return;
               
-              if (account && account.type === 'credit_card') {
-                if (transaction.accountId === accountId) {
-                  // Transaction directly affects this credit card
-                  if (transaction.type === 'income') {
-                    newBalance -= transaction.amount; // Payment reduces debt
-                  } else if (transaction.type === 'spending') {
-                    newBalance += transaction.amount; // Spending increases debt
-                  } else if (transaction.type === 'transfer') {
-                    // Transfer out from credit card (cash advance) increases debt
-                    newBalance += transaction.amount;
+              let balance = account.initialBalance;
+              const cutoffDate = new Date();
+              cutoffDate.setHours(23, 59, 59, 999);
+              
+              // Iterate through all days including the new transaction
+              Object.keys(tempDays).forEach((dateKey) => {
+                const dayDate = new Date(dateKey);
+                if (dayDate > cutoffDate) return;
+                
+                const dayData = tempDays[dateKey];
+                if (!dayData) return;
+                
+                const allTransactions = [
+                  ...dayData.income,
+                  ...(dayData.spending || []),
+                  ...(dayData.transfers || []),
+                ];
+                
+                allTransactions.forEach((t) => {
+                  // Regular income/spending affecting this account
+                  if (t.accountId === accountId) {
+                    if (account.type === 'credit_card') {
+                      if (t.type === 'income') {
+                        balance -= t.amount; // Payment reduces debt
+                      } else if (t.type === 'spending') {
+                        balance += t.amount; // Spending increases debt
+                      }
+                    }
                   }
-                } else if (transaction.transferToAccountId === accountId) {
-                  // Transfer to credit card (payment) decreases debt
-                  newBalance -= transaction.amount;
-                }
-              }
+                  
+                  // Transfer out from this account
+                  if (t.type === 'transfer' && t.accountId === accountId && t.transferToAccountId) {
+                    if (account.type === 'credit_card') {
+                      balance += t.amount; // Transfer out from credit card increases debt (cash advance)
+                    }
+                  }
+                  
+                  // Transfer in to this account
+                  if (t.type === 'transfer' && t.transferToAccountId === accountId) {
+                    if (account.type === 'credit_card') {
+                      balance -= t.amount; // Transfer to credit card decreases debt (payment)
+                    }
+                  }
+                });
+              });
               
-              // Update debt balance
+              // Update debt balance with the calculated balance
               updatedDebts = updatedDebts.map(d =>
                 d.id === linkedDebt.id
-                  ? { ...d, currentBalance: Math.abs(newBalance) }
+                  ? { ...d, currentBalance: Math.abs(balance) }
                   : d
               );
             }
