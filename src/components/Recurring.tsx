@@ -58,9 +58,11 @@ interface RecurringItemFormProps {
 }
 
 const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData, onSave, onCancel }) => {
+  const accounts = useBudgetStore((state) => state.accounts);
   const [amount, setAmount] = useState(initialData?.amount?.toString() || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [category, setCategory] = useState(initialData?.category || '');
+  const [accountId, setAccountId] = useState(initialData?.accountId || '');
   const [recurrenceType, setRecurrenceType] = useState<RecurrencePattern['type']>(
     initialData?.pattern?.type || (type === 'expense' ? 'monthly' : 'weekly')
   );
@@ -92,6 +94,7 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
         amount: numAmount,
         description: description.trim(),
         category: category || undefined,
+        accountId: accountId || undefined,
         pattern,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
@@ -149,6 +152,24 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
           required
         />
       </div>
+
+      {accounts.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Account (optional)</label>
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+          >
+            <option value="">No account selected</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {account.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -279,6 +300,7 @@ interface RecurringItemCardProps {
 }
 
 const RecurringItemCard: React.FC<RecurringItemCardProps> = ({ item, type, onEdit, onDelete }) => {
+  const accounts = useBudgetStore((state) => state.accounts);
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -296,6 +318,7 @@ const RecurringItemCard: React.FC<RecurringItemCardProps> = ({ item, type, onEdi
   const buttonColor = type === 'expense' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
 
   const categoryIcon = item.category ? CATEGORY_ICONS[item.category] || '📌' : '📌';
+  const account = item.accountId ? accounts.find(a => a.id === item.accountId) : null;
 
   return (
     <div className={`${bgColor} rounded-lg p-4 border-2 ${borderColor} hover:shadow-md transition-shadow`}>
@@ -311,6 +334,9 @@ const RecurringItemCard: React.FC<RecurringItemCardProps> = ({ item, type, onEdi
           <div className="text-sm font-medium text-gray-700 mb-1">{item.description}</div>
           {item.category && (
             <div className="text-xs text-gray-500 mb-1">Category: {item.category}</div>
+          )}
+          {account && (
+            <div className="text-xs text-gray-500 mb-1">Account: {account.name}</div>
           )}
           <div className="text-xs text-gray-500 mb-1">{formatRecurrencePattern(item.pattern)}</div>
           {nextOccurrence && (

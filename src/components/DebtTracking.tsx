@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import { format, differenceInDays, addMonths } from 'date-fns';
+import type { Debt } from '../types';
 
 // Debt type icon mapping
 const getDebtIcon = (type: string): string => {
@@ -36,11 +37,14 @@ const DebtTracking: React.FC = () => {
   const accounts = useBudgetStore((state) => state.accounts);
   const addDebt = useBudgetStore((state) => state.addDebt);
   const removeDebt = useBudgetStore((state) => state.removeDebt);
+  const updateDebt = useBudgetStore((state) => state.updateDebt);
   const addDebtPayment = useBudgetStore((state) => state.addDebtPayment);
+  const removeDebtPayment = useBudgetStore((state) => state.removeDebtPayment);
   const getTotalDebt = useBudgetStore((state) => state.getTotalDebt);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState<string | null>(null);
+  const [editingDebt, setEditingDebt] = useState<string | null>(null);
   
   const [newDebtName, setNewDebtName] = useState('');
   const [newDebtType, setNewDebtType] = useState<'credit_card' | 'loan' | 'mortgage' | 'other'>('credit_card');
@@ -54,6 +58,16 @@ const DebtTracking: React.FC = () => {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentDescription, setPaymentDescription] = useState('');
   const [paymentAccount, setPaymentAccount] = useState('');
+
+  // Edit debt form state
+  const [editDebtName, setEditDebtName] = useState('');
+  const [editDebtType, setEditDebtType] = useState<'credit_card' | 'loan' | 'mortgage' | 'other'>('credit_card');
+  const [editDebtPrincipal, setEditDebtPrincipal] = useState('');
+  const [editDebtCurrentBalance, setEditDebtCurrentBalance] = useState('');
+  const [editDebtInterest, setEditDebtInterest] = useState('');
+  const [editDebtMinPayment, setEditDebtMinPayment] = useState('');
+  const [editDebtDueDate, setEditDebtDueDate] = useState('');
+  const [editDebtAccount, setEditDebtAccount] = useState('');
   
   const handleAddDebt = () => {
     const principal = parseFloat(newDebtPrincipal);
@@ -93,6 +107,47 @@ const DebtTracking: React.FC = () => {
       setPaymentAccount('');
       setPaymentDate(new Date().toISOString().split('T')[0]);
       setShowPaymentModal(null);
+    }
+  };
+
+  const handleEditDebt = (debt: Debt) => {
+    setEditDebtName(debt.name);
+    setEditDebtType(debt.type);
+    setEditDebtPrincipal(debt.principalAmount.toString());
+    setEditDebtCurrentBalance(debt.currentBalance.toString());
+    setEditDebtInterest(debt.interestRate?.toString() || '');
+    setEditDebtMinPayment(debt.minimumPayment?.toString() || '');
+    setEditDebtDueDate(debt.dueDate?.toString() || '');
+    setEditDebtAccount(debt.accountId || '');
+    setEditingDebt(debt.id);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingDebt && editDebtName.trim()) {
+      const principal = parseFloat(editDebtPrincipal);
+      const currentBalance = parseFloat(editDebtCurrentBalance);
+      if (!isNaN(principal) && !isNaN(currentBalance) && principal > 0 && currentBalance >= 0) {
+        updateDebt(editingDebt, {
+          name: editDebtName.trim(),
+          type: editDebtType,
+          principalAmount: principal,
+          currentBalance: currentBalance,
+          interestRate: editDebtInterest ? parseFloat(editDebtInterest) : undefined,
+          minimumPayment: editDebtMinPayment ? parseFloat(editDebtMinPayment) : undefined,
+          dueDate: editDebtDueDate ? parseInt(editDebtDueDate) : undefined,
+          accountId: editDebtAccount || undefined,
+        });
+        setEditingDebt(null);
+        // Reset all edit fields
+        setEditDebtName('');
+        setEditDebtType('credit_card');
+        setEditDebtPrincipal('');
+        setEditDebtCurrentBalance('');
+        setEditDebtInterest('');
+        setEditDebtMinPayment('');
+        setEditDebtDueDate('');
+        setEditDebtAccount('');
+      }
     }
   };
   
@@ -204,15 +259,26 @@ const DebtTracking: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeDebt(debt.id)}
-                          className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
-                          title="Delete debt"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditDebt(debt)}
+                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
+                            title="Edit debt"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => removeDebt(debt.id)}
+                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
+                            title="Delete debt"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       
                       {/* Circular Progress */}
@@ -335,18 +401,29 @@ const DebtTracking: React.FC = () => {
                           <span className="text-sm font-semibold text-gray-700">Payment History</span>
                           <span className="text-xs text-gray-500">{payments.length} payments</span>
                         </div>
-                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                          {payments.slice(0, 3).map((payment) => (
-                            <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2">
-                              <span className="text-gray-600">{format(new Date(payment.date), 'MMM d, yyyy')}</span>
-                              <span className="font-semibold text-emerald-600">{formatCurrency(payment.amount)}</span>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {payments.map((payment) => (
+                            <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2 group hover:bg-gray-100 transition-colors">
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="text-gray-600">{format(new Date(payment.date), 'MMM d, yyyy')}</span>
+                                {payment.description && (
+                                  <span className="text-gray-500">• {payment.description}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-emerald-600">{formatCurrency(payment.amount)}</span>
+                                <button
+                                  onClick={() => removeDebtPayment(payment.id)}
+                                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all p-1 hover:bg-red-50 rounded"
+                                  title="Delete payment"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           ))}
-                          {payments.length > 3 && (
-                            <div className="text-xs text-center text-gray-500 pt-1">
-                              +{payments.length - 3} more payments
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
@@ -618,6 +695,187 @@ const DebtTracking: React.FC = () => {
                       setPaymentAmount('');
                       setPaymentDescription('');
                       setPaymentAccount('');
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Debt Modal */}
+        {editingDebt && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              setEditingDebt(null);
+              // Reset all edit fields
+              setEditDebtName('');
+              setEditDebtType('credit_card');
+              setEditDebtPrincipal('');
+              setEditDebtCurrentBalance('');
+              setEditDebtInterest('');
+              setEditDebtMinPayment('');
+              setEditDebtDueDate('');
+              setEditDebtAccount('');
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Edit Debt
+              </h2>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Debt Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editDebtName}
+                    onChange={(e) => setEditDebtName(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    placeholder="e.g., Credit Card, Car Loan..."
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Type
+                  </label>
+                  <select
+                    value={editDebtType}
+                    onChange={(e) => setEditDebtType(e.target.value as any)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                  >
+                    {Object.entries(debtTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Principal Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editDebtPrincipal}
+                      onChange={(e) => setEditDebtPrincipal(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Current Balance
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editDebtCurrentBalance}
+                      onChange={(e) => setEditDebtCurrentBalance(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Interest Rate % <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editDebtInterest}
+                      onChange={(e) => setEditDebtInterest(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      placeholder="0.00"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Minimum Payment <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editDebtMinPayment}
+                      onChange={(e) => setEditDebtMinPayment(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Due Date <span className="text-gray-400 font-normal">(day of month, optional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={editDebtDueDate}
+                    onChange={(e) => setEditDebtDueDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    placeholder="e.g., 15"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Account <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <select
+                    value={editDebtAccount}
+                    onChange={(e) => setEditDebtAccount(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                  >
+                    <option value="">No account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleSaveEdit}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 shadow-md hover:shadow-lg transition-all"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingDebt(null);
+                      // Reset all edit fields
+                      setEditDebtName('');
+                      setEditDebtType('credit_card');
+                      setEditDebtPrincipal('');
+                      setEditDebtCurrentBalance('');
+                      setEditDebtInterest('');
+                      setEditDebtMinPayment('');
+                      setEditDebtDueDate('');
+                      setEditDebtAccount('');
                     }}
                     className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
                   >

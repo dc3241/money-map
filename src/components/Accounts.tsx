@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
-import type { AccountType } from '../types';
+import type { AccountType, Account } from '../types';
 
 // Account type icon mapping
 const getAccountIcon = (type: AccountType): string => {
@@ -20,11 +20,13 @@ const Accounts: React.FC = () => {
   const accounts = useBudgetStore((state) => state.accounts);
   const addAccount = useBudgetStore((state) => state.addAccount);
   const removeAccount = useBudgetStore((state) => state.removeAccount);
+  const updateAccount = useBudgetStore((state) => state.updateAccount);
   const getAccountBalance = useBudgetStore((state) => state.getAccountBalance);
   const transferBetweenAccounts = useBudgetStore((state) => state.transferBetweenAccounts);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<string | null>(null);
   
   // Add account form state
   const [newAccountName, setNewAccountName] = useState('');
@@ -38,6 +40,11 @@ const Accounts: React.FC = () => {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferDescription, setTransferDescription] = useState('');
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Edit account form state
+  const [editAccountName, setEditAccountName] = useState('');
+  const [editAccountType, setEditAccountType] = useState<AccountType>('checking');
+  const [editAccountBalance, setEditAccountBalance] = useState('');
 
   const accountTypeLabels: Record<AccountType, string> = {
     checking: 'Checking',
@@ -84,6 +91,30 @@ const Accounts: React.FC = () => {
     }
   };
 
+  const handleEditAccount = (account: Account) => {
+    setEditAccountName(account.name);
+    setEditAccountType(account.type);
+    setEditAccountBalance(account.initialBalance.toString());
+    setEditingAccount(account.id);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingAccount && editAccountName.trim()) {
+      const balance = parseFloat(editAccountBalance);
+      if (!isNaN(balance)) {
+        updateAccount(editingAccount, {
+          name: editAccountName.trim(),
+          type: editAccountType,
+          initialBalance: balance,
+        });
+        setEditingAccount(null);
+        setEditAccountName('');
+        setEditAccountType('checking');
+        setEditAccountBalance('');
+      }
+    }
+  };
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -213,15 +244,26 @@ const Accounts: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => removeAccount(account.id)}
-                          className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
-                          title="Delete account"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditAccount(account)}
+                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
+                            title="Edit account"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => removeAccount(account.id)}
+                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
+                            title="Delete account"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       
                       {/* Balance Display */}
@@ -501,6 +543,94 @@ const Accounts: React.FC = () => {
                       setTransferTo('');
                       setTransferAmount('');
                       setTransferDescription('');
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Account Modal */}
+        {editingAccount && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              setEditingAccount(null);
+              setEditAccountName('');
+              setEditAccountType('checking');
+              setEditAccountBalance('');
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Edit Account
+              </h2>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Account Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editAccountName}
+                    onChange={(e) => setEditAccountName(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    placeholder="e.g., Chase Checking"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Account Type
+                  </label>
+                  <select
+                    value={editAccountType}
+                    onChange={(e) => setEditAccountType(e.target.value as AccountType)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none bg-white"
+                  >
+                    {Object.entries(accountTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {getAccountIcon(value as AccountType)} {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {editAccountType === 'credit_card' ? 'Current Balance Owed' : 'Current Balance'}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editAccountBalance}
+                      onChange={(e) => setEditAccountBalance(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleSaveEdit}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingAccount(null);
+                      setEditAccountName('');
+                      setEditAccountType('checking');
+                      setEditAccountBalance('');
                     }}
                     className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
                   >

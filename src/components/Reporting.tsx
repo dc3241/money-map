@@ -45,7 +45,9 @@ const Reporting: React.FC = () => {
         const dayData = days[dateKey];
         if (dayData) {
           income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-          spending += dayData.spending.reduce((sum, t) => sum + t.amount, 0);
+          const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
+          const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
+          spending += regularSpending + transfers; // Include transfers in spending for cash flow
         }
       }
     });

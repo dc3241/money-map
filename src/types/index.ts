@@ -14,6 +14,7 @@ export interface DayData {
   date: string; // YYYY-MM-DD format
   income: Transaction[];
   spending: Transaction[];
+  transfers: Transaction[]; // Transfers between accounts (counted in spending for cash flow)
 }
 
 export type RecurrenceType = 
@@ -42,6 +43,7 @@ export interface RecurringExpense {
   amount: number;
   description: string;
   category?: string;
+  accountId?: string; // Account the recurring expense affects
   pattern: RecurrencePattern;
   startDate?: string; // YYYY-MM-DD format, optional
   endDate?: string; // YYYY-MM-DD format, optional
@@ -54,6 +56,7 @@ export interface RecurringIncome {
   amount: number;
   description: string;
   category?: string;
+  accountId?: string; // Account the recurring income affects
   pattern: RecurrencePattern;
   startDate?: string; // YYYY-MM-DD format, optional
   endDate?: string; // YYYY-MM-DD format, optional

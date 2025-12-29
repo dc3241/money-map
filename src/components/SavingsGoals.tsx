@@ -39,11 +39,14 @@ const SavingsGoals: React.FC = () => {
   const accounts = useBudgetStore((state) => state.accounts);
   const addSavingsGoal = useBudgetStore((state) => state.addSavingsGoal);
   const removeSavingsGoal = useBudgetStore((state) => state.removeSavingsGoal);
+  const updateSavingsGoal = useBudgetStore((state) => state.updateSavingsGoal);
   const addToSavingsGoal = useBudgetStore((state) => state.addToSavingsGoal);
   const getGoalProgress = useBudgetStore((state) => state.getGoalProgress);
   
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showAddMoneyModal, setShowAddMoneyModal] = useState<string | null>(null);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [addMoneyAmount, setAddMoneyAmount] = useState('');
   const [addMoneyDate, setAddMoneyDate] = useState(new Date().toISOString().split('T')[0]);
   const [addMoneyAccount, setAddMoneyAccount] = useState('');
@@ -51,6 +54,12 @@ const SavingsGoals: React.FC = () => {
   const [newGoalTarget, setNewGoalTarget] = useState('');
   const [newGoalDate, setNewGoalDate] = useState('');
   const [newGoalAccount, setNewGoalAccount] = useState('');
+  
+  // Edit goal states
+  const [editGoalName, setEditGoalName] = useState('');
+  const [editGoalTarget, setEditGoalTarget] = useState('');
+  const [editGoalDate, setEditGoalDate] = useState('');
+  const [editGoalAccount, setEditGoalAccount] = useState('');
   
   const handleAddGoal = () => {
     const target = parseFloat(newGoalTarget);
@@ -77,6 +86,37 @@ const SavingsGoals: React.FC = () => {
       setAddMoneyDate(new Date().toISOString().split('T')[0]);
       setAddMoneyAccount('');
       setShowAddMoneyModal(null);
+    }
+  };
+
+  const handleEditGoal = (goalId: string) => {
+    const goal = goals.find(g => g.id === goalId);
+    if (goal) {
+      setEditingGoalId(goalId);
+      setEditGoalName(goal.name);
+      setEditGoalTarget(goal.targetAmount.toString());
+      setEditGoalDate(goal.targetDate || '');
+      setEditGoalAccount(goal.accountId || '');
+      setShowEditModal(true);
+    }
+  };
+
+  const handleUpdateGoal = () => {
+    if (!editingGoalId) return;
+    const target = parseFloat(editGoalTarget);
+    if (editGoalName.trim() && target > 0) {
+      updateSavingsGoal(editingGoalId, {
+        name: editGoalName.trim(),
+        targetAmount: target,
+        targetDate: editGoalDate || undefined,
+        accountId: editGoalAccount || undefined,
+      });
+      setShowEditModal(false);
+      setEditingGoalId(null);
+      setEditGoalName('');
+      setEditGoalTarget('');
+      setEditGoalDate('');
+      setEditGoalAccount('');
     }
   };
   
@@ -157,9 +197,10 @@ const SavingsGoals: React.FC = () => {
               return (
                 <div
                   key={goal.id}
-                  className={`group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 transform hover:scale-[1.02] ${
+                  className={`group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 transform hover:scale-[1.02] cursor-pointer ${
                     isComplete ? 'ring-2 ring-emerald-400 ring-opacity-50' : ''
                   }`}
+                  onClick={() => handleEditGoal(goal.id)}
                 >
                   {/* Gradient Header */}
                   <div className={`bg-gradient-to-r ${gradientColors} p-6 text-white relative overflow-hidden`}>
@@ -178,7 +219,12 @@ const SavingsGoals: React.FC = () => {
                           </div>
                         </div>
                         <button
-                          onClick={() => removeSavingsGoal(goal.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Are you sure you want to delete this goal?')) {
+                              removeSavingsGoal(goal.id);
+                            }
+                          }}
                           className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
                           title="Delete goal"
                         >
@@ -278,7 +324,10 @@ const SavingsGoals: React.FC = () => {
 
                     {/* Add Money Button */}
                     <button
-                      onClick={() => setShowAddMoneyModal(goal.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAddMoneyModal(goal.id);
+                      }}
                       disabled={isComplete}
                       className={`w-full px-4 py-3 rounded-xl font-semibold transition-all duration-200 ${
                         isComplete
@@ -397,6 +446,103 @@ const SavingsGoals: React.FC = () => {
                       setNewGoalTarget('');
                       setNewGoalDate('');
                       setNewGoalAccount('');
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Goal Modal */}
+        {showEditModal && editingGoalId && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              setShowEditModal(false);
+              setEditingGoalId(null);
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Edit Savings Goal
+              </h2>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Goal Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editGoalName}
+                    onChange={(e) => setEditGoalName(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    placeholder="e.g., Emergency Fund, Vacation, Car..."
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Target Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editGoalTarget}
+                      onChange={(e) => setEditGoalTarget(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Target Date <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editGoalDate}
+                    onChange={(e) => setEditGoalDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Account <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <select
+                    value={editGoalAccount}
+                    onChange={(e) => setEditGoalAccount(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none bg-white"
+                  >
+                    <option value="">No specific account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleUpdateGoal}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all"
+                  >
+                    Update Goal
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingGoalId(null);
                     }}
                     className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
                   >

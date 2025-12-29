@@ -13,7 +13,7 @@ const WeekDayBox: React.FC<WeekDayBoxProps> = ({ date, onClick, isToday = false 
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
 
   const dateKey = format(date, 'yyyy-MM-dd');
-  const dayData = days[dateKey] || { date: dateKey, income: [], spending: [] };
+  const dayData = days[dateKey] || { date: dateKey, income: [], spending: [], transfers: [] };
   const totals = getDailyTotal(dateKey);
 
   const formatCurrency = (amount: number) => {

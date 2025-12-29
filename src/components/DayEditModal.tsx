@@ -18,6 +18,7 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
 
   const categories = useBudgetStore((state) => state.categories);
+  const accounts = useBudgetStore((state) => state.accounts);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>('');
   const [editDescription, setEditDescription] = useState<string>('');
@@ -25,7 +26,7 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
 
   const dateKey = format(date, 'yyyy-MM-dd');
   // Get dayData from the subscribed days object
-  const dayData = days[dateKey] || { date: dateKey, income: [], spending: [] };
+  const dayData = days[dateKey] || { date: dateKey, income: [], spending: [], transfers: [] };
   const totals = getDailyTotal(dateKey);
 
   const handleAddIncome = (amount: number, description: string, accountId?: string, categoryId?: string) => {
@@ -111,7 +112,7 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-4 min-w-0">
+        <div className="grid grid-cols-3 gap-4 mb-4 min-w-0">
           {/* Income Section */}
           <div className="border-l-4 border-emerald-500 bg-white rounded-lg p-4 shadow-md min-w-0 flex flex-col">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Income</h3>
@@ -298,6 +299,89 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
             <div className="mt-3 pt-3 border-t border-gray-200">
               <div className="font-semibold text-rose-600 tabular-nums">
                 Total: {formatCurrency(totals.spending)}
+              </div>
+            </div>
+          </div>
+
+          {/* Transfers Section */}
+          <div className="border-l-4 border-blue-500 bg-white rounded-lg p-4 shadow-md min-w-0 flex flex-col">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Transfers</h3>
+            <div className="space-y-2 max-h-48 overflow-y-auto flex-1 min-h-0">
+              {(dayData.transfers || []).map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="bg-white rounded p-2 flex flex-col gap-2 min-w-0 border border-blue-100"
+                >
+                  {editingId === transaction.id ? (
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editAmount}
+                        onChange={(e) => setEditAmount(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-blue-400"
+                        placeholder="Amount"
+                      />
+                      <input
+                        type="text"
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-blue-400"
+                        placeholder="Description"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSaveEdit(transaction.id)}
+                          className="flex-1 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded font-semibold transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="flex-1 px-2 py-1 bg-gray-400 hover:bg-gray-500 text-white text-sm rounded font-semibold transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center gap-2 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold tabular-nums text-blue-600">{formatCurrency(transaction.amount)}</div>
+                        <div className="text-xs text-gray-600 truncate">{transaction.description}</div>
+                        {transaction.accountId && transaction.transferToAccountId && (
+                          <div className="text-xs text-gray-500">
+                            {accounts.find(a => a.id === transaction.accountId)?.name || 'Unknown'} → {accounts.find(a => a.id === transaction.transferToAccountId)?.name || 'Unknown'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleEdit(transaction)}
+                          className="text-blue-500 hover:text-blue-700 text-sm whitespace-nowrap"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleRemove(transaction.id)}
+                          className="text-red-500 hover:text-red-700 text-sm whitespace-nowrap"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {(dayData.transfers || []).length === 0 && (
+                <div className="text-sm text-gray-500 text-center py-4">No transfers</div>
+              )}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="text-xs text-gray-500 mb-1">Included in spending total</div>
+              <div className="font-semibold text-blue-600 tabular-nums text-sm">
+                Total: {formatCurrency((dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0))}
               </div>
             </div>
           </div>

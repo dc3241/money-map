@@ -7,9 +7,17 @@ const Budgets: React.FC = () => {
   const categories = useBudgetStore((state) => state.categories);
   const addBudget = useBudgetStore((state) => state.addBudget);
   const removeBudget = useBudgetStore((state) => state.removeBudget);
+  const updateBudget = useBudgetStore((state) => state.updateBudget);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
+  const addCategory = useBudgetStore((state) => state.addCategory);
+  const removeCategory = useBudgetStore((state) => state.removeCategory);
+  const updateCategory = useBudgetStore((state) => state.updateCategory);
   
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingBudget, setEditingBudget] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   
@@ -21,6 +29,15 @@ const Budgets: React.FC = () => {
   const [newBudgetCategory, setNewBudgetCategory] = useState('');
   const [newBudgetAmount, setNewBudgetAmount] = useState('');
   const [newBudgetPeriod, setNewBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+  
+  // Edit budget states
+  const [editBudgetCategory, setEditBudgetCategory] = useState('');
+  const [editBudgetAmount, setEditBudgetAmount] = useState('');
+  const [editBudgetPeriod, setEditBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+  
+  // Category management states
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('📌');
   
   const expenseCategories = categories.filter(c => c.type === 'expense');
   
@@ -80,6 +97,108 @@ const Budgets: React.FC = () => {
       setNewBudgetAmount('');
       setShowAddModal(false);
     }
+  };
+
+  const handleEditBudget = (budgetId: string) => {
+    const budget = budgets.find(b => b.id === budgetId);
+    if (budget) {
+      setEditingBudget(budgetId);
+      setEditBudgetCategory(budget.categoryId);
+      setEditBudgetAmount(budget.amount.toString());
+      setEditBudgetPeriod(budget.period);
+      setShowEditModal(true);
+    }
+  };
+
+  const handleUpdateBudget = () => {
+    if (!editingBudget) return;
+    const amount = parseFloat(editBudgetAmount);
+    if (editBudgetCategory && amount > 0) {
+      updateBudget(editingBudget, {
+        categoryId: editBudgetCategory,
+        amount,
+        period: editBudgetPeriod,
+      });
+      setShowEditModal(false);
+      setEditingBudget(null);
+      setEditBudgetCategory('');
+      setEditBudgetAmount('');
+    }
+  };
+
+  const handleAddCategory = () => {
+    if (newCategoryName.trim()) {
+      const categoryName = newCategoryName.trim();
+      addCategory({
+        name: categoryName,
+        type: 'expense',
+        icon: newCategoryIcon || '📌',
+      });
+      
+      // If we came from the budget modal, select the new category
+      // We need to get it from the store after it's added
+      setTimeout(() => {
+        const updatedCategories = useBudgetStore.getState().categories;
+        const createdCategory = updatedCategories.find(c => 
+          c.name === categoryName && c.type === 'expense'
+        );
+        if (createdCategory && showAddModal) {
+          setNewBudgetCategory(createdCategory.id);
+        }
+      }, 0);
+      
+      setNewCategoryName('');
+      setNewCategoryIcon('📌');
+      setShowCategoryModal(false);
+    }
+  };
+
+  const handleEditCategory = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (category) {
+      setEditingCategoryId(categoryId);
+      setNewCategoryName(category.name);
+      setNewCategoryIcon(category.icon || '📌');
+      setShowCategoryModal(true);
+    }
+  };
+
+  const handleUpdateCategory = () => {
+    if (!editingCategoryId || !newCategoryName.trim()) return;
+    
+    updateCategory(editingCategoryId, {
+      name: newCategoryName.trim(),
+      icon: newCategoryIcon || '📌',
+    });
+    
+    setEditingCategoryId(null);
+    setNewCategoryName('');
+    setNewCategoryIcon('📌');
+    setShowCategoryModal(false);
+  };
+
+  const handleCancelCategoryModal = () => {
+    setEditingCategoryId(null);
+    setNewCategoryName('');
+    setNewCategoryIcon('📌');
+    setShowCategoryModal(false);
+  };
+
+  const handleDeleteCategory = (categoryId: string) => {
+    // Check if category is used in any budgets
+    const isUsedInBudgets = budgets.some(b => b.categoryId === categoryId);
+    if (isUsedInBudgets) {
+      alert('Cannot delete category: It is being used in one or more budgets. Please remove those budgets first.');
+      return;
+    }
+    
+    if (confirm('Are you sure you want to delete this category?')) {
+      removeCategory(categoryId);
+    }
+  };
+
+  const isCategoryUsed = (categoryId: string) => {
+    return budgets.some(b => b.categoryId === categoryId);
   };
   
   const formatCurrency = (amount: number) => {
@@ -323,9 +442,10 @@ const Budgets: React.FC = () => {
               return (
                 <div
                   key={budget.id}
-                  className={`group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 transform hover:scale-[1.02] ${
+                  className={`group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 transform hover:scale-[1.02] cursor-pointer ${
                     isOverBudget ? 'ring-2 ring-red-400 ring-opacity-50' : ''
                   }`}
+                  onClick={() => handleEditBudget(budget.id)}
                 >
                   {/* Gradient Header */}
                   <div className={`bg-gradient-to-r ${gradientColors} p-6 text-white relative overflow-hidden`}>
@@ -346,7 +466,12 @@ const Budgets: React.FC = () => {
                           </div>
                         </div>
                         <button
-                          onClick={() => removeBudget(budget.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Are you sure you want to delete this budget?')) {
+                              removeBudget(budget.id);
+                            }
+                          }}
                           className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
                           title="Delete budget"
                         >
@@ -480,9 +605,22 @@ const Budgets: React.FC = () => {
               </h2>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Category
+                    </label>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowCategoryModal(true);
+                      }}
+                      className="text-xs text-slate-600 hover:text-slate-900 font-medium underline"
+                    >
+                      + Create New Category
+                    </button>
+                  </div>
                   <select
                     value={newBudgetCategory}
                     onChange={(e) => setNewBudgetCategory(e.target.value)}
@@ -550,6 +688,223 @@ const Budgets: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Edit Budget Modal */}
+        {showEditModal && editingBudget && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              setShowEditModal(false);
+              setEditingBudget(null);
+            }}
+          >
+            <div 
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                Edit Budget
+              </h2>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={editBudgetCategory}
+                    onChange={(e) => setEditBudgetCategory(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none bg-white"
+                  >
+                    <option value="">Select category</option>
+                    {expenseCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.icon || '📌'} {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Budget Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editBudgetAmount}
+                      onChange={(e) => setEditBudgetAmount(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
+                      placeholder="0.00"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Period
+                  </label>
+                  <select
+                    value={editBudgetPeriod}
+                    onChange={(e) => setEditBudgetPeriod(e.target.value as 'weekly' | 'monthly' | 'yearly')}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none bg-white"
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleUpdateBudget}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-semibold hover:from-slate-700 hover:to-slate-800 shadow-md hover:shadow-lg transition-all"
+                  >
+                    Update Budget
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingBudget(null);
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create/Edit Category Modal */}
+        {showCategoryModal && (
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+            onClick={handleCancelCategoryModal}
+          >
+            <div 
+              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                {editingCategoryId ? 'Edit Category' : 'Create Category'}
+              </h2>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="e.g., Golf, Groceries, Gas"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Icon (Emoji)
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategoryIcon}
+                    onChange={(e) => setNewCategoryIcon(e.target.value)}
+                    placeholder="📌"
+                    maxLength={2}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none text-2xl text-center"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter an emoji or icon (1-2 characters)
+                  </p>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={editingCategoryId ? handleUpdateCategory : handleAddCategory}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-semibold hover:from-slate-700 hover:to-slate-800 shadow-md hover:shadow-lg transition-all"
+                  >
+                    {editingCategoryId ? 'Update Category' : 'Create Category'}
+                  </button>
+                  <button
+                    onClick={handleCancelCategoryModal}
+                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Management Section */}
+        <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">Manage Categories</h2>
+            <button
+              onClick={() => {
+                setEditingCategoryId(null);
+                setNewCategoryName('');
+                setNewCategoryIcon('📌');
+                setShowCategoryModal(true);
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl hover:from-slate-700 hover:to-slate-800 font-semibold shadow-md hover:shadow-lg transition-all text-sm"
+            >
+              + Add Category
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {expenseCategories.map((category) => {
+              const isUsed = isCategoryUsed(category.id);
+              const isDefault = category.id.startsWith('cat-exp-') || category.id.startsWith('cat-inc-');
+              
+              return (
+                <div
+                  key={category.id}
+                  className={`p-4 rounded-xl border-2 ${
+                    isUsed 
+                      ? 'border-blue-200 bg-blue-50' 
+                      : 'border-gray-200 bg-white'
+                  } transition-all`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{category.icon || '📌'}</span>
+                      <span className="font-semibold text-gray-900 text-sm">{category.name}</span>
+                    </div>
+                    {!isDefault && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEditCategory(category.id)}
+                          className="text-blue-500 hover:text-blue-700 transition-colors"
+                          title="Edit category"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(category.id)}
+                          className="text-red-500 hover:text-red-700 transition-colors"
+                          title="Delete category"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {isUsed && (
+                    <p className="text-xs text-blue-600 mt-1">Used in budget</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

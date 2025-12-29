@@ -79,6 +79,12 @@ export const useWalkthroughStore = create<WalkthroughState>((set, get) => ({
       return;
     }
 
+    // Don't re-initialize if already completed and not loading
+    const currentState = get();
+    if (currentState.isCompleted && !currentState.isLoading) {
+      return;
+    }
+
     try {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
@@ -104,7 +110,13 @@ export const useWalkthroughStore = create<WalkthroughState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error initializing walkthrough:', error);
-      set({ isLoading: false });
+      // Preserve existing state on error, especially if already completed
+      const currentState = get();
+      set({ 
+        isLoading: false,
+        // Only preserve isCompleted if it was already set to true
+        isCompleted: currentState.isCompleted || false
+      });
     }
   },
 

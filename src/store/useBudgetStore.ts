@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { formatDateKey } from '../utils/dateUtils';
 import { getOccurrencesInMonth, migrateOldRecurringExpense, migrateOldRecurringIncome } from '../utils/recurrenceUtils';
 import { matchesExistingTransaction, matchesRecurringPattern, type StatementTransaction, type ImportResult } from '../utils/statementParser';
@@ -34,6 +35,8 @@ interface StoreActions {
   updateRecurringIncome: (id: string, income: Partial<RecurringIncome>) => void;
   // Auto-population
   populateRecurringForMonth: (year: number, month: number) => void;
+  // Cleanup past recurring transactions
+  cleanupPastRecurringTransactions: () => number;
   // Statement import
   importStatements: (transactions: StatementTransaction[]) => ImportResult;
   // Account management
@@ -144,6 +147,37 @@ function migrateOldData(state: any): any {
     }
   }
 
+  // Migrate old DayData format to include transfers array
+  if (newState.days && typeof newState.days === 'object') {
+    Object.keys(newState.days).forEach((dateKey) => {
+      const dayData = newState.days[dateKey];
+      if (dayData && !dayData.transfers) {
+        // Move any transfer-type transactions from spending to transfers array
+        const transfers: any[] = [];
+        const spending: any[] = [];
+        
+        if (dayData.spending && Array.isArray(dayData.spending)) {
+          dayData.spending.forEach((tx: any) => {
+            if (tx.type === 'transfer') {
+              transfers.push(tx);
+            } else {
+              spending.push(tx);
+            }
+          });
+        } else if (!dayData.spending) {
+          // If spending doesn't exist, initialize it
+          dayData.spending = [];
+        }
+        
+        newState.days[dateKey] = {
+          ...dayData,
+          spending,
+          transfers,
+        };
+      }
+    });
+  }
+
   return newState;
 }
 
@@ -179,11 +213,14 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
 
       addTransaction: (date: string, transaction: Transaction) => {
         set((state) => {
-          const dayData = state.days[date] || { date, income: [], spending: [] };
+          const dayData = state.days[date] || { date, income: [], spending: [], transfers: [] };
           const updatedDayData = { ...dayData };
           
           if (transaction.type === 'income') {
             updatedDayData.income = [...updatedDayData.income, transaction];
+          } else if (transaction.type === 'transfer') {
+            // Store transfers separately, but they'll be counted in spending totals for cash flow
+            updatedDayData.transfers = [...(updatedDayData.transfers || []), transaction];
           } else {
             updatedDayData.spending = [...updatedDayData.spending, transaction];
           }
@@ -259,12 +296,13 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           if (!dayData) return state;
 
           // Find the transaction being removed to check if it affects a credit card
-          const transaction = [...dayData.income, ...dayData.spending].find(t => t.id === transactionId);
+          const transaction = [...dayData.income, ...(dayData.spending || []), ...(dayData.transfers || [])].find(t => t.id === transactionId);
           
           const updatedDayData = {
             ...dayData,
             income: dayData.income.filter((t) => t.id !== transactionId),
-            spending: dayData.spending.filter((t) => t.id !== transactionId),
+            spending: (dayData.spending || []).filter((t) => t.id !== transactionId),
+            transfers: (dayData.transfers || []).filter((t) => t.id !== transactionId),
           };
 
           // Sync debt balance if transaction affected a credit card account
@@ -303,16 +341,17 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           const updatedDayData = { ...dayData };
           
           // Find the original transaction to check account
-          const originalTransaction = [...dayData.income, ...dayData.spending].find(t => t.id === transactionId);
+          const originalTransaction = [...dayData.income, ...(dayData.spending || []), ...(dayData.transfers || [])].find(t => t.id === transactionId);
           const accountId = transaction.accountId ?? originalTransaction?.accountId;
           
-          // Find and update in income or spending array
+          // Find and update in income, spending, or transfers array
           const updateInArray = (arr: Transaction[]) => {
             return arr.map((t) => (t.id === transactionId ? { ...t, ...transaction } : t));
           };
 
           updatedDayData.income = updateInArray(dayData.income);
-          updatedDayData.spending = updateInArray(dayData.spending);
+          updatedDayData.spending = updateInArray(dayData.spending || []);
+          updatedDayData.transfers = updateInArray(dayData.transfers || []);
 
           // Sync debt balance if transaction affects a credit card account
           let updatedDebts = state.debts;
@@ -343,14 +382,16 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
 
       getDayData: (date: string) => {
         const state = get();
-        return state.days[date] || { date, income: [], spending: [] };
+        return state.days[date] || { date, income: [], spending: [], transfers: [] };
       },
 
       getDailyTotal: (date: string) => {
         const state = get();
-        const dayData = state.days[date] || { date, income: [], spending: [] };
+        const dayData = state.days[date] || { date, income: [], spending: [], transfers: [] };
         const income = dayData.income.reduce((sum, t) => sum + t.amount, 0);
-        const spending = dayData.spending.reduce((sum, t) => sum + t.amount, 0);
+        const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
+        const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
+        const spending = regularSpending + transfers; // Include transfers in spending for cash flow
         return {
           income,
           spending,
@@ -369,7 +410,9 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           const dayData = state.days[dateKey];
           if (dayData) {
             income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-            spending += dayData.spending.reduce((sum, t) => sum + t.amount, 0);
+            const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
+            const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
+            spending += regularSpending + transfers; // Include transfers in spending for cash flow
           }
           currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -392,7 +435,9 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             const dayData = state.days[dateKey];
             if (dayData) {
               income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-              spending += dayData.spending.reduce((sum, t) => sum + t.amount, 0);
+              const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
+              const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
+              spending += regularSpending + transfers; // Include transfers in spending for cash flow
             }
           }
         });
@@ -467,6 +512,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       // Auto-populate recurring items for a given month
       populateRecurringForMonth: (year: number, month: number) => {
         const state = get();
+        const today = startOfDay(new Date());
 
         // Handle recurring expenses
         state.recurringExpenses
@@ -480,9 +526,21 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               expense.endDate
             );
 
+            // Get the creation date or use today, whichever is later
+            // This ensures we only create transactions from when the expense was added forward
+            const createdAt = expense.createdAt ? parseISO(expense.createdAt) : today;
+            const minDate = isBefore(createdAt, today) ? today : createdAt;
+            const minDateStartOfDay = startOfDay(minDate);
+
             occurrences.forEach((occurrenceDate) => {
+              // Only create transactions for dates on or after the creation date (or today)
+              const occurrenceStartOfDay = startOfDay(occurrenceDate);
+              if (isBefore(occurrenceStartOfDay, minDateStartOfDay)) {
+                return; // Skip past dates
+              }
+
               const dateKey = formatDateKey(occurrenceDate);
-              const dayData = state.days[dateKey] || { date: dateKey, income: [], spending: [] };
+              const dayData = state.days[dateKey] || { date: dateKey, income: [], spending: [], transfers: [] };
 
               // Check if this recurring expense already exists for this date
               const alreadyExists = dayData.spending.some(
@@ -497,6 +555,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                   description: expense.description,
                   isRecurring: true,
                   recurringId: expense.id,
+                  accountId: expense.accountId,
                 };
                 get().addTransaction(dateKey, transaction);
               }
@@ -515,9 +574,21 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               income.endDate
             );
 
+            // Get the creation date or use today, whichever is later
+            // This ensures we only create transactions from when the income was added forward
+            const createdAt = income.createdAt ? parseISO(income.createdAt) : today;
+            const minDate = isBefore(createdAt, today) ? today : createdAt;
+            const minDateStartOfDay = startOfDay(minDate);
+
             occurrences.forEach((occurrenceDate) => {
+              // Only create transactions for dates on or after the creation date (or today)
+              const occurrenceStartOfDay = startOfDay(occurrenceDate);
+              if (isBefore(occurrenceStartOfDay, minDateStartOfDay)) {
+                return; // Skip past dates
+              }
+
               const dateKey = formatDateKey(occurrenceDate);
-              const dayData = state.days[dateKey] || { date: dateKey, income: [], spending: [] };
+              const dayData = state.days[dateKey] || { date: dateKey, income: [], spending: [], transfers: [] };
 
               // Check if this recurring income already exists for this date
               const alreadyExists = dayData.income.some(
@@ -532,11 +603,95 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                   description: income.description,
                   isRecurring: true,
                   recurringId: income.id,
+                  accountId: income.accountId,
                 };
                 get().addTransaction(dateKey, transaction);
               }
             });
           });
+      },
+
+      // Cleanup past recurring transactions that were created before the recurring item was added
+      cleanupPastRecurringTransactions: () => {
+        const state = get();
+        const today = startOfDay(new Date());
+        const updatedDays: Record<string, DayData> = { ...state.days };
+        let removedCount = 0;
+
+        // Process all days
+        Object.keys(updatedDays).forEach((dateKey) => {
+          const dayData = updatedDays[dateKey];
+          const date = parseISO(dateKey);
+          const dateStartOfDay = startOfDay(date);
+
+          // Check spending transactions
+          const validSpending = dayData.spending.filter((transaction) => {
+            if (!transaction.isRecurring || !transaction.recurringId) {
+              return true; // Keep non-recurring transactions
+            }
+
+            // Find the recurring expense
+            const expense = state.recurringExpenses.find((e) => e.id === transaction.recurringId);
+            if (!expense) {
+              return true; // Keep if expense not found (might have been deleted)
+            }
+
+            // Get the creation date
+            const createdAt = expense.createdAt ? parseISO(expense.createdAt) : today;
+            const minDate = isBefore(createdAt, today) ? today : createdAt;
+            const minDateStartOfDay = startOfDay(minDate);
+
+            // Remove if transaction date is before the creation date
+            if (isBefore(dateStartOfDay, minDateStartOfDay)) {
+              removedCount++;
+              return false;
+            }
+
+            return true;
+          });
+
+          // Check income transactions
+          const validIncome = dayData.income.filter((transaction) => {
+            if (!transaction.isRecurring || !transaction.recurringId) {
+              return true; // Keep non-recurring transactions
+            }
+
+            // Find the recurring income
+            const income = state.recurringIncome.find((i) => i.id === transaction.recurringId);
+            if (!income) {
+              return true; // Keep if income not found (might have been deleted)
+            }
+
+            // Get the creation date
+            const createdAt = income.createdAt ? parseISO(income.createdAt) : today;
+            const minDate = isBefore(createdAt, today) ? today : createdAt;
+            const minDateStartOfDay = startOfDay(minDate);
+
+            // Remove if transaction date is before the creation date
+            if (isBefore(dateStartOfDay, minDateStartOfDay)) {
+              removedCount++;
+              return false;
+            }
+
+            return true;
+          });
+
+          // Update the day data if transactions were removed
+          if (validSpending.length !== dayData.spending.length || validIncome.length !== dayData.income.length) {
+            updatedDays[dateKey] = {
+              ...dayData,
+              spending: validSpending,
+              income: validIncome,
+            };
+          }
+        });
+
+        // Update the store if any changes were made
+        if (removedCount > 0) {
+          set({ days: updatedDays });
+        }
+
+        return removedCount;
       },
 
       // Import bank statements with duplicate detection
@@ -733,7 +888,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           // Process all transactions (income, spending, transfers)
           const allTransactions = [
             ...dayData.income,
-            ...dayData.spending,
+            ...(dayData.spending || []),
+            ...(dayData.transfers || []),
           ];
 
           allTransactions.forEach((transaction) => {
@@ -1033,19 +1189,36 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               : d
           );
           
-          // If accountId is provided, create a spending transaction
+          // If accountId is provided, create a transaction
           let transactionId: string | undefined;
           if (payment.accountId) {
             const debt = state.debts.find((d) => d.id === payment.debtId);
-            const transaction: Transaction = {
-              id: `debt-payment-tx-${newPayment.id}`,
-              type: 'spending',
-              amount: payment.amount,
-              description: payment.description || `Debt payment: ${debt?.name || 'Debt'}`,
-              accountId: payment.accountId,
-            };
-            transactionId = transaction.id;
-            get().addTransaction(payment.date, transaction);
+            
+            // If debt is linked to a credit card account, create a transfer transaction
+            // This ensures both the payment account and credit card account balances are updated
+            if (debt?.accountId) {
+              const transaction: Transaction = {
+                id: `debt-payment-transfer-${newPayment.id}`,
+                type: 'transfer',
+                amount: payment.amount,
+                description: payment.description || `Debt payment: ${debt.name}`,
+                accountId: payment.accountId, // Account payment is made from
+                transferToAccountId: debt.accountId, // Credit card account being paid
+              };
+              transactionId = transaction.id;
+              get().addTransaction(payment.date, transaction);
+            } else {
+              // Debt not linked to an account, create a spending transaction
+              const transaction: Transaction = {
+                id: `debt-payment-tx-${newPayment.id}`,
+                type: 'spending',
+                amount: payment.amount,
+                description: payment.description || `Debt payment: ${debt?.name || 'Debt'}`,
+                accountId: payment.accountId,
+              };
+              transactionId = transaction.id;
+              get().addTransaction(payment.date, transaction);
+            }
           }
           
           return {

@@ -10,13 +10,9 @@ interface DayBoxProps {
 }
 
 const DayBox: React.FC<DayBoxProps> = ({ date, isCurrentMonth, onClick, isToday = false }) => {
-  // Subscribe to the days object directly so component re-renders when transactions are added
-  const days = useBudgetStore((state) => state.days);
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
 
   const dateKey = format(date, 'yyyy-MM-dd');
-  // Get dayData from the subscribed days object
-  const dayData = days[dateKey] || { date: dateKey, income: [], spending: [] };
   const totals = getDailyTotal(dateKey);
 
   const formatCurrency = (amount: number) => {
