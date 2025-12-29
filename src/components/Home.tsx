@@ -1,5 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
+import calendarDashboardImg from '../assets/screenshots/calendar-dashboard.png';
+import reportsImg from '../assets/screenshots/reports.png';
+import budgetsImg from '../assets/screenshots/budgets.png';
+import goalsImg from '../assets/screenshots/goals.png';
 
 export default function Home() {
   const { user } = useAuthStore();
@@ -261,7 +265,7 @@ export default function Home() {
               </div>
               <div className="aspect-video bg-slate-700 flex items-center justify-center relative">
                 <img 
-                  src="/screenshots/calendar-dashboard.png" 
+                  src={calendarDashboardImg} 
                   alt="Calendar Dashboard View"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -295,7 +299,7 @@ export default function Home() {
               </div>
               <div className="aspect-video bg-slate-700 flex items-center justify-center relative">
                 <img 
-                  src="/screenshots/reports.png" 
+                  src={reportsImg} 
                   alt="Reports View"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -332,7 +336,7 @@ export default function Home() {
               </div>
               <div className="aspect-video bg-slate-700 flex items-center justify-center relative">
                 <img 
-                  src="/screenshots/budgets.png" 
+                  src={budgetsImg} 
                   alt="Budgets View"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -366,7 +370,7 @@ export default function Home() {
               </div>
               <div className="aspect-video bg-slate-700 flex items-center justify-center relative">
                 <img 
-                  src="/screenshots/goals.png" 
+                  src={goalsImg} 
                   alt="Savings Goals View"
                   className="w-full h-full object-cover"
                   onError={(e) => {
