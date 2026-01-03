@@ -100,18 +100,15 @@ const Accounts: React.FC = () => {
 
   const handleSaveEdit = () => {
     if (editingAccount && editAccountName.trim()) {
-      const balance = parseFloat(editAccountBalance);
-      if (!isNaN(balance)) {
-        updateAccount(editingAccount, {
-          name: editAccountName.trim(),
-          type: editAccountType,
-          initialBalance: balance,
-        });
-        setEditingAccount(null);
-        setEditAccountName('');
-        setEditAccountType('checking');
-        setEditAccountBalance('');
-      }
+      updateAccount(editingAccount, {
+        name: editAccountName.trim(),
+        type: editAccountType,
+        // Removed initialBalance - it should not be editable after account creation
+      });
+      setEditingAccount(null);
+      setEditAccountName('');
+      setEditAccountType('checking');
+      setEditAccountBalance('');
     }
   };
   
@@ -211,7 +208,11 @@ const Accounts: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {accounts.map((account) => {
               const balance = getAccountBalance(account.id);
-              const balanceChange = balance - account.initialBalance;
+              const rawBalanceChange = balance - account.initialBalance;
+              // For credit cards, invert the change sign (increase in debt is bad = negative)
+              const balanceChange = account.type === 'credit_card' 
+                ? -rawBalanceChange 
+                : rawBalanceChange;
               const icon = getAccountIcon(account.type);
               
               // Gradient colors based on account type - matching sidebar slate-900 theme
@@ -450,106 +451,114 @@ const Accounts: React.FC = () => {
               <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                 Transfer Money
               </h2>
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    From Account
-                  </label>
-                  <select
-                    value={transferFrom}
-                    onChange={(e) => setTransferFrom(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none bg-white"
-                  >
-                    <option value="">Select account</option>
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {getAccountIcon(account.type)} {account.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    To Account
-                  </label>
-                  <select
-                    value={transferTo}
-                    onChange={(e) => setTransferTo(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none bg-white"
-                  >
-                    <option value="">Select account</option>
-                    {accounts
-                      .filter((a) => a.id !== transferFrom)
-                      .map((account) => (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleTransfer();
+                }}
+              >
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      From Account
+                    </label>
+                    <select
+                      value={transferFrom}
+                      onChange={(e) => setTransferFrom(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none bg-white"
+                    >
+                      <option value="">Select account</option>
+                      {accounts.map((account) => (
                         <option key={account.id} value={account.id}>
                           {getAccountIcon(account.type)} {account.name}
                         </option>
                       ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Transfer Amount
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-xl">$</span>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      To Account
+                    </label>
+                    <select
+                      value={transferTo}
+                      onChange={(e) => setTransferTo(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none bg-white"
+                    >
+                      <option value="">Select account</option>
+                      {accounts
+                        .filter((a) => a.id !== transferFrom)
+                        .map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {getAccountIcon(account.type)} {account.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Transfer Amount
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-xl">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={transferAmount}
+                        onChange={(e) => setTransferAmount(e.target.value)}
+                        className="w-full pl-10 pr-4 py-4 text-2xl border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none font-semibold"
+                        placeholder="0.00"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Transfer Date
+                    </label>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={transferAmount}
-                      onChange={(e) => setTransferAmount(e.target.value)}
-                      className="w-full pl-10 pr-4 py-4 text-2xl border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none font-semibold"
-                      placeholder="0.00"
-                      autoFocus
+                      type="date"
+                      value={transferDate}
+                      onChange={(e) => setTransferDate(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Description <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={transferDescription}
+                      onChange={(e) => setTransferDescription(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
+                      placeholder="e.g., Credit card payment"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="submit"
+                      className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-semibold hover:from-slate-700 hover:to-slate-800 shadow-md hover:shadow-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                      disabled={!transferFrom || !transferTo || !transferAmount || transferFrom === transferTo}
+                    >
+                      Transfer Money
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTransferModal(false);
+                        setTransferFrom('');
+                        setTransferTo('');
+                        setTransferAmount('');
+                        setTransferDescription('');
+                      }}
+                      className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Transfer Date
-                  </label>
-                  <input
-                    type="date"
-                    value={transferDate}
-                    onChange={(e) => setTransferDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Description <span className="text-gray-400 font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={transferDescription}
-                    onChange={(e) => setTransferDescription(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
-                    placeholder="e.g., Credit card payment"
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={handleTransfer}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-semibold hover:from-slate-700 hover:to-slate-800 shadow-md hover:shadow-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:shadow-none"
-                    disabled={!transferFrom || !transferTo || !transferAmount || transferFrom === transferTo}
-                  >
-                    Transfer Money
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowTransferModal(false);
-                      setTransferFrom('');
-                      setTransferTo('');
-                      setTransferAmount('');
-                      setTransferDescription('');
-                    }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+              </form>
             </div>
           </div>
         )}
@@ -605,6 +614,7 @@ const Accounts: React.FC = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     {editAccountType === 'credit_card' ? 'Current Balance Owed' : 'Current Balance'}
+                    <span className="text-xs text-gray-500 font-normal ml-2">(cannot be edited)</span>
                   </label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
@@ -613,7 +623,8 @@ const Accounts: React.FC = () => {
                       step="0.01"
                       value={editAccountBalance}
                       onChange={(e) => setEditAccountBalance(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                      disabled
+                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-100 text-gray-600 cursor-not-allowed"
                       placeholder="0.00"
                     />
                   </div>

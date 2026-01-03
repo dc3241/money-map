@@ -66,12 +66,33 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
   const [recurrenceType, setRecurrenceType] = useState<RecurrencePattern['type']>(
     initialData?.pattern?.type || (type === 'expense' ? 'monthly' : 'weekly')
   );
-  const [dayType, setDayType] = useState<RecurrencePattern['dayType']>(
-    initialData?.pattern?.dayType || (type === 'expense' ? 'dayOfMonth' : 'dayOfWeek')
-  );
-  const [dayValue, setDayValue] = useState<number>(
-    initialData?.pattern?.dayValue !== undefined ? initialData.pattern.dayValue : (type === 'expense' ? 1 : 1)
-  );
+  
+  // Initialize dayType based on recurrenceType, ensuring monthly items always use dayOfMonth
+  const getInitialDayType = (): RecurrencePattern['dayType'] => {
+    if (initialData?.pattern?.dayType) {
+      return initialData.pattern.dayType;
+    }
+    const patternType = initialData?.pattern?.type || (type === 'expense' ? 'monthly' : 'weekly');
+    if (patternType === 'weekly' || patternType === 'biweekly') {
+      return 'dayOfWeek';
+    } else if (patternType === 'monthly' || patternType === 'quarterly' || patternType === 'semiannual') {
+      return 'dayOfMonth';
+    }
+    return undefined;
+  };
+  
+  const [dayType, setDayType] = useState<RecurrencePattern['dayType']>(getInitialDayType());
+  
+  const [dayValue, setDayValue] = useState<number>(() => {
+    if (initialData?.pattern?.dayValue !== undefined) {
+      return initialData.pattern.dayValue;
+    }
+    // Handle lastDayOfMonth case
+    if (initialData?.pattern?.dayType === 'lastDayOfMonth') {
+      return -1;
+    }
+    return type === 'expense' ? 1 : 1;
+  });
   const [startDate, setStartDate] = useState(initialData?.startDate || '');
   const [endDate, setEndDate] = useState(initialData?.endDate || '');
   const [isActive, setIsActive] = useState(initialData?.isActive !== undefined ? initialData.isActive : true);
@@ -182,8 +203,16 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
               // Auto-adjust dayType based on frequency
               if (newType === 'weekly' || newType === 'biweekly') {
                 setDayType('dayOfWeek');
+                // Reset dayValue to a valid day of week if needed
+                if (dayValue > 6) {
+                  setDayValue(1);
+                }
               } else if (newType === 'monthly' || newType === 'quarterly' || newType === 'semiannual') {
                 setDayType('dayOfMonth');
+                // Reset dayValue to a valid day of month if needed
+                if (dayValue > 31 || (dayValue < 1 && dayValue !== -1)) {
+                  setDayValue(1);
+                }
               } else {
                 setDayType(undefined);
               }
@@ -200,7 +229,8 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
           </select>
         </div>
 
-        {dayType === 'dayOfWeek' && (
+        {/* Always show day selector when frequency requires it */}
+        {(recurrenceType === 'weekly' || recurrenceType === 'biweekly') && dayType === 'dayOfWeek' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
             <select
@@ -217,7 +247,7 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
           </div>
         )}
 
-        {dayType === 'dayOfMonth' && (
+        {(recurrenceType === 'monthly' || recurrenceType === 'quarterly' || recurrenceType === 'semiannual') && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Day of Month</label>
             <select

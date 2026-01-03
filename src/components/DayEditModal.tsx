@@ -23,6 +23,8 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   const [editAmount, setEditAmount] = useState<string>('');
   const [editDescription, setEditDescription] = useState<string>('');
   const [editCategory, setEditCategory] = useState<string>('');
+  const [editAccountId, setEditAccountId] = useState<string>('');
+  const [editDate, setEditDate] = useState<string>('');
 
   const dateKey = format(date, 'yyyy-MM-dd');
   // Get dayData from the subscribed days object
@@ -65,20 +67,60 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
     setEditAmount(transaction.amount.toString());
     setEditDescription(transaction.description);
     setEditCategory(transaction.category || '');
+    setEditAccountId(transaction.accountId || '');
+    setEditDate(dateKey); // Initialize with current date
   };
 
   const handleSaveEdit = (transactionId: string) => {
     const numAmount = parseFloat(editAmount);
-    if (numAmount > 0 && editDescription.trim()) {
-      updateTransaction(dateKey, transactionId, {
-        amount: numAmount,
-        description: editDescription.trim(),
-        category: editCategory || undefined,
-      });
+    if (numAmount > 0 && editDescription.trim() && editDate) {
+      const newDateKey = editDate;
+      
+      // If date changed, we need to move the transaction
+      if (newDateKey !== dateKey) {
+        // Get the original transaction
+        const originalTransaction = [...dayData.income, ...dayData.spending, ...(dayData.transfers || [])]
+          .find(t => t.id === transactionId);
+        
+        if (originalTransaction) {
+          // Remove from old date
+          removeTransaction(dateKey, transactionId);
+          
+          // Add to new date with updated values
+          // If this was a recurring transaction, convert it to a manual transaction
+          // by clearing the recurring flags and generating a new ID
+          const updatedTransaction: Transaction = {
+            ...originalTransaction,
+            id: originalTransaction.isRecurring 
+              ? `${Date.now()}-${Math.random().toString(36).substr(2, 9)}` // Generate new ID for moved recurring transactions
+              : originalTransaction.id, // Keep original ID for non-recurring transactions
+            amount: numAmount,
+            description: editDescription.trim(),
+            category: editCategory || undefined,
+            accountId: editAccountId || undefined,
+            // Clear recurring flags if this was a recurring transaction being moved
+            // This prevents populateRecurringForMonth from recreating it at the original date
+            isRecurring: originalTransaction.isRecurring ? undefined : originalTransaction.isRecurring,
+            recurringId: originalTransaction.isRecurring ? undefined : originalTransaction.recurringId,
+          };
+          addTransaction(newDateKey, updatedTransaction);
+        }
+      } else {
+        // Same date, just update normally
+        updateTransaction(dateKey, transactionId, {
+          amount: numAmount,
+          description: editDescription.trim(),
+          category: editCategory || undefined,
+          accountId: editAccountId || undefined,
+        });
+      }
+      
       setEditingId(null);
       setEditAmount('');
       setEditDescription('');
       setEditCategory('');
+      setEditAccountId('');
+      setEditDate('');
     }
   };
 
@@ -87,6 +129,8 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
     setEditAmount('');
     setEditDescription('');
     setEditCategory('');
+    setEditAccountId('');
+    setEditDate('');
   };
 
   const formatCurrency = (amount: number) => {
@@ -118,13 +162,35 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Income</h3>
             <TransactionInput type="income" onAdd={handleAddIncome} />
             <div className="space-y-2 max-h-48 overflow-y-auto flex-1 min-h-0">
-              {dayData.income.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  className="bg-white rounded p-2 flex flex-col gap-2 min-w-0"
-                >
-                  {editingId === transaction.id ? (
+              {dayData.income.map((transaction) => {
+                const isRecurring = transaction.isRecurring || !!transaction.recurringId;
+                return (
+                  <div
+                    key={transaction.id}
+                    className="bg-white rounded p-2 flex flex-col gap-2 min-w-0"
+                  >
+                    {editingId === transaction.id ? (
                     <div className="flex flex-col gap-2">
+                      <input
+                        type="date"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-emerald-400"
+                      />
+                      {accounts.length > 0 && (
+                        <select
+                          value={editAccountId}
+                          onChange={(e) => setEditAccountId(e.target.value)}
+                          className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-emerald-400"
+                        >
+                          <option value="">No account</option>
+                          {accounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <input
                         type="number"
                         step="0.01"
@@ -173,12 +239,21 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold tabular-nums text-emerald-600">{formatCurrency(transaction.amount)}</div>
                         <div className="text-xs text-gray-600 truncate">{transaction.description}</div>
+                        {isRecurring && (
+                          <div className="text-xs text-blue-500 italic">Recurring transaction</div>
+                        )}
+                        {transaction.accountId && (
+                          <div className="text-xs text-gray-500">
+                            {accounts.find(a => a.id === transaction.accountId)?.name || 'Unknown account'}
+                          </div>
+                        )}
                         {transaction.category && (
                           <div className="text-xs text-gray-500">
                             {categories.find(c => c.id === transaction.category)?.name || transaction.category}
                           </div>
                         )}
                       </div>
+                      {/* Allow editing/deleting recurring transactions - account balances update automatically */}
                       <div className="flex gap-2 flex-shrink-0">
                         <button
                           onClick={() => handleEdit(transaction)}
@@ -195,8 +270,9 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                       </div>
                     </div>
                   )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
               {dayData.income.length === 0 && (
                 <div className="text-sm text-gray-500 text-center py-4">No income entries</div>
               )}
@@ -213,13 +289,35 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Spending</h3>
             <TransactionInput type="spending" onAdd={handleAddSpending} />
             <div className="space-y-2 max-h-48 overflow-y-auto flex-1 min-h-0">
-              {dayData.spending.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  className="bg-white rounded p-2 flex flex-col gap-2 min-w-0"
-                >
-                  {editingId === transaction.id ? (
+              {dayData.spending.map((transaction) => {
+                const isRecurring = transaction.isRecurring || !!transaction.recurringId;
+                return (
+                  <div
+                    key={transaction.id}
+                    className="bg-white rounded p-2 flex flex-col gap-2 min-w-0"
+                  >
+                    {editingId === transaction.id ? (
                     <div className="flex flex-col gap-2">
+                      <input
+                        type="date"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-red-400"
+                      />
+                      {accounts.length > 0 && (
+                        <select
+                          value={editAccountId}
+                          onChange={(e) => setEditAccountId(e.target.value)}
+                          className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-red-400"
+                        >
+                          <option value="">No account</option>
+                          {accounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <input
                         type="number"
                         step="0.01"
@@ -268,12 +366,21 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold tabular-nums text-rose-600">{formatCurrency(transaction.amount)}</div>
                         <div className="text-xs text-gray-600 truncate">{transaction.description}</div>
+                        {isRecurring && (
+                          <div className="text-xs text-blue-500 italic">Recurring transaction</div>
+                        )}
+                        {transaction.accountId && (
+                          <div className="text-xs text-gray-500">
+                            {accounts.find(a => a.id === transaction.accountId)?.name || 'Unknown account'}
+                          </div>
+                        )}
                         {transaction.category && (
                           <div className="text-xs text-gray-500">
                             {categories.find(c => c.id === transaction.category)?.name || transaction.category}
                           </div>
                         )}
                       </div>
+                      {/* Allow editing/deleting recurring transactions - account balances update automatically */}
                       <div className="flex gap-2 flex-shrink-0">
                         <button
                           onClick={() => handleEdit(transaction)}
@@ -290,8 +397,9 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                       </div>
                     </div>
                   )}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
               {dayData.spending.length === 0 && (
                 <div className="text-sm text-gray-500 text-center py-4">No spending entries</div>
               )}
@@ -314,6 +422,12 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                 >
                   {editingId === transaction.id ? (
                     <div className="flex flex-col gap-2">
+                      <input
+                        type="date"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                        className="px-2 py-1 border-2 border-gray-300 rounded text-sm focus:outline-none focus:border-blue-400"
+                      />
                       <input
                         type="number"
                         step="0.01"

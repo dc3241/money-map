@@ -13,6 +13,30 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
 
+// Helper function to convert Firebase errors to user-friendly messages
+const getAuthErrorMessage = (error: any): string => {
+  const errorCode = error?.code || '';
+  
+  switch (errorCode) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Invalid email or password. Please check your credentials and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Please choose a stronger password.';
+    case 'auth/invalid-email':
+      return 'Invalid email address. Please check your email and try again.';
+    case 'auth/too-many-requests':
+      return 'Too many failed login attempts. Please try again later.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection and try again.';
+    default:
+      return 'An error occurred. Please try again.';
+  }
+};
+
 interface AuthState {
   user: User | null;
   loading: boolean;
@@ -38,7 +62,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ error: null, loading: true });
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      set({ error: error.message || 'Failed to sign in', loading: false });
+      const errorMessage = getAuthErrorMessage(error);
+      set({ error: errorMessage, loading: false });
       throw error;
     }
   },
@@ -48,7 +73,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ error: null, loading: true });
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      set({ error: error.message || 'Failed to sign up', loading: false });
+      const errorMessage = getAuthErrorMessage(error);
+      set({ error: errorMessage, loading: false });
       throw error;
     }
   },
@@ -58,7 +84,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ error: null, loading: true });
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      set({ error: error.message || 'Failed to sign in with Google', loading: false });
+      const errorMessage = getAuthErrorMessage(error);
+      set({ error: errorMessage, loading: false });
       throw error;
     }
   },
@@ -68,7 +95,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       await signOut(auth);
       set({ user: null });
     } catch (error: any) {
-      set({ error: error.message || 'Failed to logout' });
+      const errorMessage = getAuthErrorMessage(error);
+      set({ error: errorMessage });
     }
   },
 
@@ -80,7 +108,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       await updateProfile(user, { displayName: displayName.trim() });
       set({ loading: false });
     } catch (error: any) {
-      set({ error: error.message || 'Failed to update profile', loading: false });
+      const errorMessage = getAuthErrorMessage(error);
+      set({ error: errorMessage, loading: false });
       throw error;
     }
   },
@@ -99,7 +128,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       await updatePassword(user, newPassword);
       set({ loading: false });
     } catch (error: any) {
-      set({ error: error.message || 'Failed to update password', loading: false });
+      const errorMessage = getAuthErrorMessage(error);
+      set({ error: errorMessage, loading: false });
       throw error;
     }
   },

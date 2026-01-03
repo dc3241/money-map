@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
-import { format } from 'date-fns';
+import { format, startOfDay, parseISO } from 'date-fns';
 import StatementImport from './StatementImport';
 import {
   BarChart,
@@ -38,16 +38,23 @@ const Reporting: React.FC = () => {
   const annualTotals = useMemo(() => {
     let income = 0;
     let spending = 0;
+    const today = startOfDay(new Date());
 
     Object.keys(days).forEach((dateKey) => {
       const [year] = dateKey.split('-').map(Number);
       if (year === selectedYear) {
-        const dayData = days[dateKey];
-        if (dayData) {
-          income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-          const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-          const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
-          spending += regularSpending + transfers; // Include transfers in spending for cash flow
+        // Parse the date and compare to today
+        const dayDate = startOfDay(parseISO(dateKey));
+        
+        // Only include transactions on or before today
+        if (dayDate.getTime() <= today.getTime()) {
+          const dayData = days[dateKey];
+          if (dayData) {
+            income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
+            const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
+            const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
+            spending += regularSpending + transfers; // Include transfers in spending for cash flow
+          }
         }
       }
     });

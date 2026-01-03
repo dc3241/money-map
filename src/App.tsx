@@ -32,11 +32,36 @@ function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile'>('dashboard');
   const [calendarViewType, setCalendarViewType] = useState<'weekly' | 'monthly'>('weekly'); // Default to weekly
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const populateRecurringForMonth = useBudgetStore((state) => state.populateRecurringForMonth);
   const cleanupPastRecurringTransactions = useBudgetStore((state) => state.cleanupPastRecurringTransactions);
+  const initializeBudgetData = useBudgetStore((state) => state.initializeBudgetData);
   const { user } = useAuthStore();
   const { initializeWalkthrough, isCompleted, isLoading } = useWalkthroughStore();
   const hasInitialized = useRef(false);
+  const budgetInitialized = useRef(false);
+
+  // Reset initialization flag when user logs out
+  useEffect(() => {
+    if (!user) {
+      budgetInitialized.current = false;
+      hasInitialized.current = false;
+      useBudgetStore.setState({ isInitialized: false });
+      // Reset walkthrough store state on logout - initializeWalkthrough will load from Firestore for new user
+      useWalkthroughStore.setState({ 
+        isCompleted: false, 
+        isLoading: true
+      });
+    }
+  }, [user]);
+
+  // Initialize budget data when user is loaded (only once per session)
+  useEffect(() => {
+    if (user && !budgetInitialized.current) {
+      budgetInitialized.current = true;
+      initializeBudgetData();
+    }
+  }, [user, initializeBudgetData]);
 
   // Initialize walkthrough when user is loaded (only once per session)
   useEffect(() => {
@@ -59,6 +84,17 @@ function Dashboard() {
   // Auto-complete tasks based on user actions
   useWalkthroughAutoComplete();
 
+  // Auto-populate recurring items for current month on app load/initialization
+  // This ensures transactions are created when the day changes or app is opened
+  useEffect(() => {
+    if (user) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1; // getMonth() returns 0-11
+      populateRecurringForMonth(year, month);
+    }
+  }, [user, populateRecurringForMonth]);
+
   // Auto-populate recurring items when viewing a month
   useEffect(() => {
     if (currentView === 'dashboard') {
@@ -68,15 +104,33 @@ function Dashboard() {
     }
   }, [currentDate, currentView, populateRecurringForMonth]);
 
+  // Force weekly view on mobile when component mounts or screen size changes
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768 && calendarViewType === 'monthly') {
+        setCalendarViewType('weekly');
+      }
+    };
+    
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [calendarViewType]);
+
   return (
     <div className="flex h-screen bg-gray-50 relative">
       {/* Left Sidebar */}
-      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+      <Sidebar 
+        currentView={currentView} 
+        onViewChange={setCurrentView}
+        isMobileMenuOpen={isMobileMenuOpen}
+        onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      />
 
       {/* Main Content Area */}
       <Suspense fallback={<LoadingSpinner />}>
         {currentView === 'dashboard' ? (
-          <div className="flex-1 flex flex-col h-full">
+          <div className="flex-1 flex flex-col h-full md:ml-0">
             {/* Calendar Area (90% height) */}
             <div className="flex-[9] min-h-0">
               <Calendar 
