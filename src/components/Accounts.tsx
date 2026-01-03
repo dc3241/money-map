@@ -17,6 +17,10 @@ const getAccountIcon = (type: AccountType): string => {
 };
 
 const Accounts: React.FC = () => {
+  // Subscribe to days so component re-renders when transactions are added/updated
+  const days = useBudgetStore((state) => state.days);
+  // Ensure days is tracked by referencing it (prevents unused var warning while maintaining subscription)
+  void days;
   const accounts = useBudgetStore((state) => state.accounts);
   const addAccount = useBudgetStore((state) => state.addAccount);
   const removeAccount = useBudgetStore((state) => state.removeAccount);

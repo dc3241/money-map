@@ -337,7 +337,7 @@ const DebtTracking: React.FC = () => {
                       </div>
                       <div className="flex justify-between items-baseline pt-2 border-t border-gray-100">
                         <span className="text-sm text-gray-600">Paid Off</span>
-                        <span className="text-lg font-semibold text-emerald-600">
+                        <span className={`text-lg font-semibold ${paidAmount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {formatCurrency(paidAmount)}
                         </span>
                       </div>
