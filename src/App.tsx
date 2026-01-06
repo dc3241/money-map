@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
+import BottomNavigation from './components/BottomNavigation';
 import SummaryBar from './components/SummaryBar';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useBudgetStore } from './store/useBudgetStore';
@@ -117,12 +118,20 @@ function Dashboard() {
     return () => window.removeEventListener('resize', handleResize);
   }, [calendarViewType]);
 
+  const handleViewChange = (view: typeof currentView) => {
+    setCurrentView(view);
+    // Close mobile menu when a view is selected
+    if (isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-gray-50 relative">
+    <div className="flex h-screen bg-gray-50 relative overflow-x-hidden">
       {/* Left Sidebar */}
       <Sidebar 
         currentView={currentView} 
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         isMobileMenuOpen={isMobileMenuOpen}
         onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
@@ -130,9 +139,20 @@ function Dashboard() {
       {/* Main Content Area */}
       <Suspense fallback={<LoadingSpinner />}>
         {currentView === 'dashboard' ? (
-          <div className="flex-1 flex flex-col h-full md:ml-0">
-            {/* Calendar Area (90% height) */}
-            <div className="flex-[9] min-h-0">
+          <div className="flex-1 flex flex-col h-full md:ml-0 pb-16 md:pb-0" ref={(el) => {
+            // #region agent log
+            if (el) {
+              setTimeout(() => {
+                const rect = el.getBoundingClientRect();
+                const logData = {location:'App.tsx:133',message:'Dashboard container dimensions',data:{dashboardWidth:rect.width,dashboardLeft:rect.left,dashboardRight:rect.right,viewportWidth:window.innerWidth},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'};
+                console.log('DEBUG:', logData);
+                fetch('http://127.0.0.1:7242/ingest/9a5fadb7-ed49-408b-9ad5-e9f09e1cac2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch((e) => console.error('Log fetch failed:', e));
+              }, 100);
+            }
+            // #endregion
+          }}>
+            {/* Calendar Area (84% height on mobile, 90% on desktop) */}
+            <div className="flex-[84] md:flex-[9] min-h-0">
               <Calendar 
                 currentDate={currentDate} 
                 onDateChange={setCurrentDate}
@@ -141,25 +161,39 @@ function Dashboard() {
               />
             </div>
 
-            {/* Summary Bar (10% height) */}
-            <div className="flex-[1] min-h-0">
+            {/* Summary Bar (16% height on mobile, 10% on desktop) */}
+            <div className="flex-[16] md:flex-[1] min-h-0 mb-16 md:mb-0">
               <SummaryBar currentDate={currentDate} />
             </div>
           </div>
         ) : currentView === 'recurring' ? (
-          <Recurring />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+            <Recurring />
+          </div>
         ) : currentView === 'accounts' ? (
-          <Accounts />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+            <Accounts />
+          </div>
         ) : currentView === 'budgets' ? (
-          <Budgets />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0 overflow-x-hidden w-full max-w-full min-w-0">
+            <Budgets />
+          </div>
         ) : currentView === 'goals' ? (
-          <SavingsGoals />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+            <SavingsGoals />
+          </div>
         ) : currentView === 'debt' ? (
-          <DebtTracking />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+            <DebtTracking />
+          </div>
         ) : currentView === 'profile' ? (
-          <Profile />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+            <Profile />
+          </div>
         ) : (
-          <Reporting />
+          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+            <Reporting />
+          </div>
         )}
       </Suspense>
 
@@ -169,6 +203,13 @@ function Dashboard() {
           <Walkthrough currentView={currentView} onNavigate={setCurrentView} />
         </Suspense>
       )}
+
+      {/* Bottom Navigation (Mobile only) */}
+      <BottomNavigation
+        currentView={currentView}
+        onViewChange={handleViewChange}
+        onMoreMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      />
     </div>
   );
 }

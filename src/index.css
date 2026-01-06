@@ -14,3 +14,8 @@ body {
   height: 100vh;
 }
 
+/* Safe area support for devices with notches/home indicators */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+

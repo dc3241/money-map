@@ -639,18 +639,108 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       },
 
       removeRecurringExpense: (id: string) => {
-        set((state) => ({
-          recurringExpenses: state.recurringExpenses.filter((e) => e.id !== id),
-        }));
+        set((state) => {
+          // Remove the recurring expense
+          const updatedRecurringExpenses = state.recurringExpenses.filter((e) => e.id !== id);
+          
+          // Remove all future transactions (from today forward) created from this recurring expense
+          // Keep all past transactions as they represent historical events
+          const today = formatDateKey(startOfDay(new Date()));
+          const updatedDays: Record<string, DayData> = { ...state.days };
+          let hasChanges = false;
+          
+          Object.keys(updatedDays).forEach((dateKey) => {
+            // Only remove transactions from today forward (dateKey >= today)
+            // Since dates are in YYYY-MM-DD format, we can compare them lexicographically
+            if (dateKey >= today) {
+              const dayData = updatedDays[dateKey];
+              const updatedSpending = dayData.spending.filter(
+                (t) => !(t.recurringId === id && t.isRecurring)
+              );
+              
+              if (updatedSpending.length !== dayData.spending.length) {
+                updatedDays[dateKey] = {
+                  ...dayData,
+                  spending: updatedSpending,
+                };
+                hasChanges = true;
+              }
+            }
+          });
+          
+          if (hasChanges) {
+            return {
+              recurringExpenses: updatedRecurringExpenses,
+              days: updatedDays,
+            };
+          }
+          
+          return {
+            recurringExpenses: updatedRecurringExpenses,
+          };
+        });
         setTimeout(() => get().saveToFirestore(), 0);
       },
 
       updateRecurringExpense: (id: string, expense: Partial<RecurringExpense>) => {
-        set((state) => ({
-          recurringExpenses: state.recurringExpenses.map((e) =>
+        set((state) => {
+          const updatedRecurringExpenses = state.recurringExpenses.map((e) =>
             e.id === id ? { ...e, ...expense } : e
-          ),
-        }));
+          );
+          
+          // If accountId, amount, or description was updated, update all existing transactions from this recurring expense
+          if (expense.accountId !== undefined || expense.amount !== undefined || expense.description !== undefined) {
+            const updatedDays: Record<string, DayData> = { ...state.days };
+            let hasChanges = false;
+            
+            Object.keys(updatedDays).forEach((dateKey) => {
+              const dayData = updatedDays[dateKey];
+              let dayHasChanges = false;
+              const updatedSpending = dayData.spending.map((t) => {
+                if (t.recurringId === id && t.isRecurring) {
+                  const updated: Transaction = { ...t };
+                  let transactionChanged = false;
+                  if (expense.accountId !== undefined && updated.accountId !== expense.accountId) {
+                    updated.accountId = expense.accountId;
+                    transactionChanged = true;
+                  }
+                  if (expense.amount !== undefined && updated.amount !== expense.amount) {
+                    updated.amount = expense.amount;
+                    transactionChanged = true;
+                  }
+                  if (expense.description !== undefined && updated.description !== expense.description) {
+                    updated.description = expense.description;
+                    transactionChanged = true;
+                  }
+                  if (transactionChanged) {
+                    dayHasChanges = true;
+                  }
+                  return updated;
+                }
+                return t;
+              });
+              
+              if (dayHasChanges) {
+                updatedDays[dateKey] = {
+                  ...dayData,
+                  spending: updatedSpending,
+                };
+                hasChanges = true;
+              }
+            });
+            
+            if (hasChanges) {
+              return {
+                recurringExpenses: updatedRecurringExpenses,
+                days: updatedDays,
+              };
+            }
+          }
+          
+          return {
+            recurringExpenses: updatedRecurringExpenses,
+          };
+        });
         setTimeout(() => get().saveToFirestore(), 0);
       },
 
@@ -673,18 +763,108 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       },
 
       removeRecurringIncome: (id: string) => {
-        set((state) => ({
-          recurringIncome: state.recurringIncome.filter((i) => i.id !== id),
-        }));
+        set((state) => {
+          // Remove the recurring income
+          const updatedRecurringIncome = state.recurringIncome.filter((i) => i.id !== id);
+          
+          // Remove all future transactions (from today forward) created from this recurring income
+          // Keep all past transactions as they represent historical events
+          const today = formatDateKey(startOfDay(new Date()));
+          const updatedDays: Record<string, DayData> = { ...state.days };
+          let hasChanges = false;
+          
+          Object.keys(updatedDays).forEach((dateKey) => {
+            // Only remove transactions from today forward (dateKey >= today)
+            // Since dates are in YYYY-MM-DD format, we can compare them lexicographically
+            if (dateKey >= today) {
+              const dayData = updatedDays[dateKey];
+              const updatedIncome = dayData.income.filter(
+                (t) => !(t.recurringId === id && t.isRecurring)
+              );
+              
+              if (updatedIncome.length !== dayData.income.length) {
+                updatedDays[dateKey] = {
+                  ...dayData,
+                  income: updatedIncome,
+                };
+                hasChanges = true;
+              }
+            }
+          });
+          
+          if (hasChanges) {
+            return {
+              recurringIncome: updatedRecurringIncome,
+              days: updatedDays,
+            };
+          }
+          
+          return {
+            recurringIncome: updatedRecurringIncome,
+          };
+        });
         setTimeout(() => get().saveToFirestore(), 0);
       },
 
       updateRecurringIncome: (id: string, income: Partial<RecurringIncome>) => {
-        set((state) => ({
-          recurringIncome: state.recurringIncome.map((i) =>
+        set((state) => {
+          const updatedRecurringIncome = state.recurringIncome.map((i) =>
             i.id === id ? { ...i, ...income } : i
-          ),
-        }));
+          );
+          
+          // If accountId, amount, or description was updated, update all existing transactions from this recurring income
+          if (income.accountId !== undefined || income.amount !== undefined || income.description !== undefined) {
+            const updatedDays: Record<string, DayData> = { ...state.days };
+            let hasChanges = false;
+            
+            Object.keys(updatedDays).forEach((dateKey) => {
+              const dayData = updatedDays[dateKey];
+              let dayHasChanges = false;
+              const updatedIncome = dayData.income.map((t) => {
+                if (t.recurringId === id && t.isRecurring) {
+                  const updated: Transaction = { ...t };
+                  let transactionChanged = false;
+                  if (income.accountId !== undefined && updated.accountId !== income.accountId) {
+                    updated.accountId = income.accountId;
+                    transactionChanged = true;
+                  }
+                  if (income.amount !== undefined && updated.amount !== income.amount) {
+                    updated.amount = income.amount;
+                    transactionChanged = true;
+                  }
+                  if (income.description !== undefined && updated.description !== income.description) {
+                    updated.description = income.description;
+                    transactionChanged = true;
+                  }
+                  if (transactionChanged) {
+                    dayHasChanges = true;
+                  }
+                  return updated;
+                }
+                return t;
+              });
+              
+              if (dayHasChanges) {
+                updatedDays[dateKey] = {
+                  ...dayData,
+                  income: updatedIncome,
+                };
+                hasChanges = true;
+              }
+            });
+            
+            if (hasChanges) {
+              return {
+                recurringIncome: updatedRecurringIncome,
+                days: updatedDays,
+              };
+            }
+          }
+          
+          return {
+            recurringIncome: updatedRecurringIncome,
+          };
+        });
         setTimeout(() => get().saveToFirestore(), 0);
       },
 

@@ -88,15 +88,15 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Calendar Header */}
-      <div className="flex justify-between items-center py-2 px-4 border-b border-gray-200 bg-white">
+      <div className="flex justify-between items-center py-1 md:py-2 px-2 md:px-4 border-b border-gray-200 bg-white overflow-x-hidden">
         <button
           onClick={handlePreviousPeriod}
           className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm font-semibold transition-colors hidden md:block"
         >
           ← Prev
         </button>
-        <div className="flex items-center gap-4 flex-1 justify-center md:justify-start">
-          <h2 className="text-lg font-bold text-gray-900">
+        <div className="flex items-center gap-4 flex-1 justify-center md:justify-start min-w-0">
+          <h2 className="text-lg font-bold text-gray-900 text-center md:text-left truncate">
             {viewType === 'weekly' 
               ? `${format(weekRange!.start, 'MMM d')} - ${format(weekRange!.end, 'MMM d, yyyy')}`
               : format(currentDate, 'MMMM yyyy')
@@ -135,22 +135,34 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-hidden p-3 min-h-0">
+      <div className="flex-1 overflow-hidden p-0 md:p-3 min-h-0 overflow-x-hidden min-w-0" ref={(el) => {
+        // #region agent log
+        if (el) {
+          setTimeout(() => {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            const logData = {location:'Calendar.tsx:138',message:'Calendar grid container dimensions',data:{containerWidth:rect.width,containerLeft:rect.left,containerRight:rect.right,containerOverflow:rect.right > window.innerWidth,viewportWidth:window.innerWidth,documentWidth:document.documentElement.clientWidth,computedWidth:style.width,minWidth:style.minWidth,paddingLeft:style.paddingLeft,paddingRight:style.paddingRight},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'};
+            console.log('DEBUG:', logData);
+            fetch('http://127.0.0.1:7242/ingest/9a5fadb7-ed49-408b-9ad5-e9f09e1cac2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch((e) => console.error('Log fetch failed:', e));
+          }, 100);
+        }
+        // #endregion
+      }}>
         {viewType === 'weekly' ? (
           <>
             {/* Mobile: Single Day View */}
-            <div className="md:hidden h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
+            <div className="md:hidden h-full flex flex-col overflow-x-hidden w-full">
+              <div className="flex items-center justify-center mb-2 md:mb-4 relative px-12 w-full max-w-full">
                 <button
                   onClick={handlePreviousDay}
-                  className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+                  className="absolute left-0 p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
                   aria-label="Previous day"
                 >
-                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                <div className="text-center">
+                <div className="text-center flex-shrink-0">
                   <div className="text-sm font-semibold text-gray-600">
                     {format(mobileCurrentDay, 'EEEE')}
                   </div>
@@ -160,20 +172,34 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
                 </div>
                 <button
                   onClick={handleNextDay}
-                  className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+                  className="absolute right-0 p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
                   aria-label="Next day"
                 >
-                  <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
               </div>
-              <div className="flex-1 min-h-0">
-                <WeekDayBox
-                  date={mobileCurrentDay}
-                  isToday={format(mobileCurrentDay, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')}
-                  onClick={() => handleDayClick(mobileCurrentDay)}
-                />
+              <div className="flex-1 min-h-0 flex items-stretch overflow-x-hidden w-full min-w-0">
+                <div className="w-full flex max-w-full min-w-0 h-full max-h-full px-2 py-1 md:px-0 md:py-0" ref={(el) => {
+                  // #region agent log
+                  if (el) {
+                    setTimeout(() => {
+                      const rect = el.getBoundingClientRect();
+                      const style = window.getComputedStyle(el);
+                      const logData = {location:'Calendar.tsx:183',message:'Card wrapper dimensions',data:{wrapperWidth:rect.width,wrapperLeft:rect.left,wrapperRight:rect.right,viewportWidth:window.innerWidth,documentWidth:document.documentElement.clientWidth,computedWidth:style.width,minWidth:style.minWidth,maxWidth:style.maxWidth,paddingLeft:style.paddingLeft,paddingRight:style.paddingRight,marginLeft:style.marginLeft,marginRight:style.marginRight,boxSizing:style.boxSizing},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'};
+                      console.log('DEBUG:', logData);
+                      fetch('http://127.0.0.1:7242/ingest/9a5fadb7-ed49-408b-9ad5-e9f09e1cac2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch((e) => console.error('Log fetch failed:', e));
+                    }, 100);
+                  }
+                  // #endregion
+                }}>
+                  <WeekDayBox
+                    date={mobileCurrentDay}
+                    isToday={format(mobileCurrentDay, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')}
+                    onClick={() => handleDayClick(mobileCurrentDay)}
+                  />
+                </div>
               </div>
             </div>
 
