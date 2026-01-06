@@ -693,9 +693,30 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             const updatedDays: Record<string, DayData> = { ...state.days };
             let hasChanges = false;
             
+            // If accountId is being updated, get the account's creation date
+            let accountCreatedAt: Date | null = null;
+            if (expense.accountId !== undefined) {
+              const account = state.accounts.find(a => a.id === expense.accountId);
+              if (account && account.createdAt) {
+                accountCreatedAt = startOfDay(parseISO(account.createdAt));
+              }
+            }
+            
             Object.keys(updatedDays).forEach((dateKey) => {
               const dayData = updatedDays[dateKey];
               let dayHasChanges = false;
+              
+              // Parse the transaction date
+              const transactionDate = new Date(dateKey + 'T00:00:00');
+              const transactionDateStartOfDay = startOfDay(transactionDate);
+              
+              // If accountId is being updated, only update transactions on or after the account was created
+              if (expense.accountId !== undefined && accountCreatedAt) {
+                if (transactionDateStartOfDay.getTime() < accountCreatedAt.getTime()) {
+                  return; // Skip past transactions - don't update them to use the new account
+                }
+              }
+              
               const updatedSpending = dayData.spending.map((t) => {
                 if (t.recurringId === id && t.isRecurring) {
                   const updated: Transaction = { ...t };
@@ -817,9 +838,30 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             const updatedDays: Record<string, DayData> = { ...state.days };
             let hasChanges = false;
             
+            // If accountId is being updated, get the account's creation date
+            let accountCreatedAt: Date | null = null;
+            if (income.accountId !== undefined) {
+              const account = state.accounts.find(a => a.id === income.accountId);
+              if (account && account.createdAt) {
+                accountCreatedAt = startOfDay(parseISO(account.createdAt));
+              }
+            }
+            
             Object.keys(updatedDays).forEach((dateKey) => {
               const dayData = updatedDays[dateKey];
               let dayHasChanges = false;
+              
+              // Parse the transaction date
+              const transactionDate = new Date(dateKey + 'T00:00:00');
+              const transactionDateStartOfDay = startOfDay(transactionDate);
+              
+              // If accountId is being updated, only update transactions on or after the account was created
+              if (income.accountId !== undefined && accountCreatedAt) {
+                if (transactionDateStartOfDay.getTime() < accountCreatedAt.getTime()) {
+                  return; // Skip past transactions - don't update them to use the new account
+                }
+              }
+              
               const updatedIncome = dayData.income.map((t) => {
                 if (t.recurringId === id && t.isRecurring) {
                   const updated: Transaction = { ...t };
@@ -1279,6 +1321,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         cutoffDate.setHours(0, 0, 0, 0);
         cutoffDate.setHours(23, 59, 59, 999); // End of day
 
+        // Get the account creation date - only transactions on or after this date should affect the balance
+        const accountCreatedAt = account.createdAt ? parseISO(account.createdAt) : new Date(0);
+        const accountCreatedAtStartOfDay = startOfDay(accountCreatedAt);
+
         // Get all date keys and sort them chronologically
         // This is critical - transactions must be processed in date order
         const dateKeys = Object.keys(state.days).sort((a, b) => {
@@ -1296,6 +1342,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           
           // Only process transactions up to and including the cutoff date
           if (dayDate.getTime() > cutoffDate.getTime()) return;
+          
+          // CRITICAL FIX: Only process transactions on or after the account was created
+          // This prevents past transactions from affecting a newly created account's balance
+          if (dayDate.getTime() < accountCreatedAtStartOfDay.getTime()) return;
 
           const dayData = state.days[dateKey];
           if (!dayData) return;
