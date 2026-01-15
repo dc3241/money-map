@@ -28,9 +28,9 @@ const WeekDayBox: React.FC<WeekDayBoxProps> = ({ date, onClick, isToday = false 
   return (
     <div
       className={`
-        relative bg-white border border-gray-200 rounded-lg px-2 py-1 md:p-4 min-h-0 w-full max-w-full min-w-0 cursor-pointer 
-        shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 flex flex-col overflow-hidden box-border
-        ${isToday ? 'ring-2 ring-blue-500' : ''}
+        relative bg-white rounded-lg px-2 py-1 md:p-4 min-h-0 w-full max-w-full min-w-0 cursor-pointer 
+        shadow-sm hover:shadow-md transition-all duration-200 flex flex-col box-border
+        ${isToday ? 'border-2 border-blue-500' : 'border border-gray-200 hover:border-gray-300'}
       `}
       style={{ maxWidth: '100%', height: '100%', maxHeight: '100%' }}
       ref={(el) => {
@@ -80,7 +80,7 @@ const WeekDayBox: React.FC<WeekDayBoxProps> = ({ date, onClick, isToday = false 
               {formatCurrency(totals.income)}
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto max-h-[35vh] md:max-h-none">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {dayData.income.length > 0 ? (
               <div className="space-y-1 md:space-y-2">
                 {dayData.income.map((transaction) => (
@@ -110,7 +110,7 @@ const WeekDayBox: React.FC<WeekDayBoxProps> = ({ date, onClick, isToday = false 
               {formatCurrency(totals.spending)}
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto max-h-[35vh] md:max-h-none">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {dayData.spending.length > 0 ? (
               <div className="space-y-1 md:space-y-2">
                 {dayData.spending.map((transaction) => (

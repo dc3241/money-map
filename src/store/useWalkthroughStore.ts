@@ -79,12 +79,8 @@ export const useWalkthroughStore = create<WalkthroughState>((set, get) => ({
       return;
     }
 
-    // Don't re-initialize if already completed and not loading
-    const currentState = get();
-    if (currentState.isCompleted && !currentState.isLoading) {
-      return;
-    }
-
+    // Always read from Firestore to get the source of truth
+    // Don't rely on local state which might be stale, especially after logout/login
     try {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
@@ -110,12 +106,12 @@ export const useWalkthroughStore = create<WalkthroughState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error initializing walkthrough:', error);
-      // Preserve existing state on error, especially if already completed
-      const currentState = get();
+      // On error, default to showing walkthrough (safer than hiding it incorrectly)
+      // This ensures users can complete it even if there's a Firestore issue
       set({ 
         isLoading: false,
-        // Only preserve isCompleted if it was already set to true
-        isCompleted: currentState.isCompleted || false
+        isCompleted: false,
+        tasks: defaultTasks
       });
     }
   },

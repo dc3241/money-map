@@ -44,11 +44,6 @@ export default function Home() {
       title: 'Detailed Reporting',
       description: 'Get insights into your spending patterns with comprehensive reports and visual analytics.',
     },
-    {
-      icon: '📄',
-      title: 'Statement Import',
-      description: 'Import bank statements automatically. Save time with our smart PDF parsing technology.',
-    },
   ];
 
   const benefits = [

@@ -6,7 +6,12 @@ interface WalkthroughProps {
 }
 
 export default function Walkthrough({ onNavigate }: WalkthroughProps) {
-  const { tasks, isCompleted, isLoading, checkTask, skipWalkthrough, completeWalkthrough } = useWalkthroughStore();
+  const tasks = useWalkthroughStore((state) => state.tasks);
+  const isCompleted = useWalkthroughStore((state) => state.isCompleted);
+  const isLoading = useWalkthroughStore((state) => state.isLoading);
+  const checkTask = useWalkthroughStore((state) => state.checkTask);
+  const skipWalkthrough = useWalkthroughStore((state) => state.skipWalkthrough);
+  const completeWalkthrough = useWalkthroughStore((state) => state.completeWalkthrough);
 
   if (isLoading || isCompleted) {
     return null;

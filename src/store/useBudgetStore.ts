@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { formatDateKey } from '../utils/dateUtils';
 import { getOccurrencesInMonth, migrateOldRecurringExpense, migrateOldRecurringIncome } from '../utils/recurrenceUtils';
-import { matchesExistingTransaction, matchesRecurringPattern, type StatementTransaction, type ImportResult } from '../utils/statementParser';
 import type { Transaction, DayData, RecurringExpense, RecurringIncome, Account, Category, Budget, SavingsGoal, Debt, DebtPayment } from '../types';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -40,8 +39,6 @@ interface StoreActions {
   populateRecurringForMonth: (year: number, month: number) => void;
   // Cleanup past recurring transactions
   cleanupPastRecurringTransactions: () => number;
-  // Statement import
-  importStatements: (transactions: StatementTransaction[]) => ImportResult;
   // Account management
   addAccount: (account: Omit<Account, 'id' | 'createdAt'>, alsoTrackAsDebt?: boolean) => void;
   removeAccount: (id: string) => void;
@@ -83,6 +80,7 @@ interface StoreActions {
   removeDebtPayment: (paymentId: string) => void;
   getDebtBalance: (debtId: string) => number;
   getTotalDebt: () => number;
+  syncDebtBalancesFromAccounts: () => void;
   // Firestore sync
   initializeBudgetData: () => Promise<void>;
   saveToFirestore: () => Promise<void>;
@@ -275,6 +273,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               cutoffDate.setHours(0, 0, 0, 0);
               cutoffDate.setHours(23, 59, 59, 999);
               
+              // Get the account creation date - only transactions on or after this date should affect the balance
+              const accountCreatedAt = account.createdAt ? parseISO(account.createdAt) : new Date(0);
+              const accountCreatedAtStartOfDay = startOfDay(accountCreatedAt);
+              
               // Get all date keys and sort them chronologically
               const dateKeys = Object.keys(tempDays).sort((a, b) => {
                 // Parse as local time for proper comparison
@@ -291,6 +293,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                 
                 // Only process transactions up to and including the cutoff date
                 if (dayDate.getTime() > cutoffDate.getTime()) return;
+                
+                // CRITICAL FIX: Only process transactions on or after the account was created
+                // This prevents past transactions from affecting a newly created account's balance
+                if (dayDate.getTime() < accountCreatedAtStartOfDay.getTime()) return;
                 
                 const dayData = tempDays[dateKey];
                 if (!dayData) return;
@@ -408,6 +414,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                 cutoffDate.setHours(0, 0, 0, 0);
                 cutoffDate.setHours(23, 59, 59, 999); // End of day
                 
+                // Get the account creation date - only transactions on or after this date should affect the balance
+                const accountCreatedAt = account.createdAt ? parseISO(account.createdAt) : new Date(0);
+                const accountCreatedAtStartOfDay = startOfDay(accountCreatedAt);
+                
                 // Get all date keys and sort them chronologically
                 const dateKeys = Object.keys(updatedDays).sort((a, b) => {
                   // Parse as local time for proper comparison
@@ -424,6 +434,10 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                   
                   // Only process transactions up to and including the cutoff date
                   if (dayDate.getTime() > cutoffDate.getTime()) return;
+                  
+                  // CRITICAL FIX: Only process transactions on or after the account was created
+                  // This prevents past transactions from affecting a newly created account's balance
+                  if (dayDate.getTime() < accountCreatedAtStartOfDay.getTime()) return;
                   
                   const dayData = updatedDays[dateKey];
                   if (!dayData) return;
@@ -1104,138 +1118,6 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         return removedCount;
       },
 
-      // Import bank statements with duplicate detection
-      importStatements: (transactions: StatementTransaction[]) => {
-        const state = get();
-        const result: ImportResult = {
-          added: 0,
-          skipped: 0,
-          errors: [],
-          skippedTransactions: [],
-        };
-        
-        for (const statementTx of transactions) {
-          try {
-            // Get existing transactions for this date
-            const dayData = state.days[statementTx.date] || { 
-              date: statementTx.date, 
-              income: [], 
-              spending: [] 
-            };
-            
-            // Determine transaction type
-            const txType = statementTx.type || (statementTx.amount >= 0 ? 'income' : 'spending');
-            
-            // Get existing transactions of the same type for this date
-            const existingTransactions = txType === 'income' 
-              ? dayData.income 
-              : dayData.spending;
-            
-            // Check for exact duplicate (same date, amount, type, and description)
-            const exactMatch = existingTransactions.some(existing => {
-              const amountDiff = Math.abs(statementTx.amount - existing.amount);
-              const descMatch = existing.description.toLowerCase().trim() === statementTx.description.toLowerCase().trim();
-              return amountDiff < 0.01 && descMatch;
-            });
-            
-            if (exactMatch) {
-              result.skipped++;
-              result.skippedTransactions.push(statementTx);
-              continue;
-            }
-            
-            // Check if it matches a recurring pattern
-            const recurringItems = statementTx.type === 'income' 
-              ? state.recurringIncome 
-              : state.recurringExpenses;
-            
-            const recurringMatch = matchesRecurringPattern(
-              statementTx,
-              recurringItems
-            );
-            
-            if (recurringMatch.matched) {
-              // Check if recurring transaction already exists for this date
-              const transactionsForType = statementTx.type === 'income' 
-                ? dayData.income 
-                : dayData.spending;
-              
-              const recurringTxExists = transactionsForType.some(t => 
-                t.recurringId === recurringMatch.recurringId && 
-                t.isRecurring
-              );
-              
-              if (recurringTxExists) {
-                result.skipped++;
-                result.skippedTransactions.push(statementTx);
-                continue;
-              }
-            }
-            
-            // Check for fuzzy match with existing transactions (within date window)
-            // We'll check transactions from nearby dates too, but only of the same type
-            const nearbyDates: string[] = [statementTx.date];
-            const statementDate = new Date(statementTx.date);
-            for (let i = 1; i <= 2; i++) {
-              const prevDate = new Date(statementDate);
-              prevDate.setDate(prevDate.getDate() - i);
-              nearbyDates.push(formatDateKey(prevDate));
-              
-              const nextDate = new Date(statementDate);
-              nextDate.setDate(nextDate.getDate() + i);
-              nearbyDates.push(formatDateKey(nextDate));
-            }
-            
-            const nearbyTransactionsWithDates: Array<{ transaction: Transaction; date: string }> = [];
-            nearbyDates.forEach(date => {
-              const nearbyDayData = state.days[date];
-              if (nearbyDayData) {
-                // Only check transactions of the same type
-                const transactionsToCheck = txType === 'income' 
-                  ? nearbyDayData.income 
-                  : nearbyDayData.spending;
-                transactionsToCheck.forEach(tx => {
-                  nearbyTransactionsWithDates.push({ transaction: tx, date });
-                });
-              }
-            });
-            
-            // Check for fuzzy match
-            if (matchesExistingTransaction(statementTx, nearbyTransactionsWithDates, 2)) {
-              result.skipped++;
-              result.skippedTransactions.push(statementTx);
-              continue;
-            }
-            
-            // Add the transaction
-            const transaction: Transaction = {
-              id: `imported-${Date.now()}-${Math.random()}`,
-              type: statementTx.type || (statementTx.amount >= 0 ? 'income' : 'spending'),
-              amount: statementTx.amount,
-              description: statementTx.description,
-              isRecurring: recurringMatch.matched,
-              recurringId: recurringMatch.recurringId,
-            };
-            
-            get().addTransaction(statementTx.date, transaction);
-            result.added++;
-            
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            result.errors.push(
-              `Error importing transaction on ${statementTx.date}: ${errorMessage}`
-            );
-          }
-        }
-        
-        // Save to Firestore after import
-        if (result.added > 0) {
-          setTimeout(() => get().saveToFirestore(), 0);
-        }
-        
-        return result;
-      },
-
       // Account management
       addAccount: (account, alsoTrackAsDebt = true) => {
         const newAccount: Account = {
@@ -1749,6 +1631,29 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         return state.debts.reduce((sum, debt) => sum + debt.currentBalance, 0);
       },
 
+      syncDebtBalancesFromAccounts: () => {
+        const state = get();
+        const updatedDebts = state.debts.map((debt) => {
+          if (debt.accountId) {
+            const account = state.accounts.find((a) => a.id === debt.accountId);
+            if (account && account.type === 'credit_card') {
+              const accountBalance = get().getAccountBalance(debt.accountId);
+              return {
+                ...debt,
+                currentBalance: Math.abs(accountBalance),
+              };
+            }
+          }
+          return debt;
+        });
+        
+        // Only update if there are changes
+        if (JSON.stringify(updatedDebts) !== JSON.stringify(state.debts)) {
+          set({ debts: updatedDebts });
+          setTimeout(() => get().saveToFirestore(), 0);
+        }
+      },
+
       // Firestore sync state
       isLoading: false,
       isInitialized: false,
@@ -1813,6 +1718,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               isLoading: false,
               isInitialized: true,
             });
+            // Sync debt balances after loading data to repair any discrepancies
+            setTimeout(() => get().syncDebtBalancesFromAccounts(), 100);
           } else {
             // No Firestore data - check if localStorage has data to migrate
             const currentState = get();
@@ -1889,6 +1796,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                   isLoading: false,
                   isInitialized: true,
                 });
+                // Sync debt balances after loading data to repair any discrepancies
+                setTimeout(() => get().syncDebtBalancesFromAccounts(), 100);
               } catch (migrationError) {
                 console.error('Error migrating localStorage data to Firestore:', migrationError);
                 // Still mark as initialized so the app can continue
@@ -1896,6 +1805,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                   isLoading: false,
                   isInitialized: true,
                 });
+                // Sync debt balances even on error to repair any discrepancies
+                setTimeout(() => get().syncDebtBalancesFromAccounts(), 100);
               }
             } else {
               // Check localStorage as fallback (in case rehydration didn't work)
@@ -1935,6 +1846,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                       isLoading: false,
                       isInitialized: true,
                     });
+                    // Sync debt balances after loading data to repair any discrepancies
+                    setTimeout(() => get().syncDebtBalancesFromAccounts(), 100);
                   } else {
                     // No valid data, initialize empty
                     await setDoc(userDocRef, {

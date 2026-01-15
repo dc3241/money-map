@@ -38,7 +38,9 @@ function Dashboard() {
   const cleanupPastRecurringTransactions = useBudgetStore((state) => state.cleanupPastRecurringTransactions);
   const initializeBudgetData = useBudgetStore((state) => state.initializeBudgetData);
   const { user } = useAuthStore();
-  const { initializeWalkthrough, isCompleted, isLoading } = useWalkthroughStore();
+  const initializeWalkthrough = useWalkthroughStore((state) => state.initializeWalkthrough);
+  const isCompleted = useWalkthroughStore((state) => state.isCompleted);
+  const isLoading = useWalkthroughStore((state) => state.isLoading);
   const hasInitialized = useRef(false);
   const budgetInitialized = useRef(false);
 
@@ -48,10 +50,10 @@ function Dashboard() {
       budgetInitialized.current = false;
       hasInitialized.current = false;
       useBudgetStore.setState({ isInitialized: false });
-      // Reset walkthrough store state on logout - initializeWalkthrough will load from Firestore for new user
+      // Reset walkthrough state on logout to ensure clean initialization on next login
       useWalkthroughStore.setState({ 
-        isCompleted: false, 
-        isLoading: true
+        isLoading: true,
+        isCompleted: false
       });
     }
   }, [user]);

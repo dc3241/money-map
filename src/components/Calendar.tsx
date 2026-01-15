@@ -204,17 +204,19 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
             </div>
 
             {/* Desktop: Weekly View - 7 days in a row */}
-            <div className="hidden md:grid grid-cols-7 gap-4 h-full">
+            <div className="hidden md:grid grid-cols-7 gap-4 h-full overflow-hidden">
               {weekDays.map((day, index) => (
-                <div key={day} className="flex flex-col">
-                  <div className="bg-white py-2 px-1 text-center text-xs font-semibold text-gray-600 border-b border-gray-200 mb-2">
+                <div key={day} className="flex flex-col min-h-0 h-full">
+                  <div className="bg-white py-2 px-1 text-center text-xs font-semibold text-gray-600 border-b border-gray-200 mb-2 flex-shrink-0">
                     {day}
                   </div>
-                  <WeekDayBox
-                    date={weekGrid[index]}
-                    isToday={weekGrid[index].getTime() === today.getTime()}
-                    onClick={() => handleDayClick(weekGrid[index])}
-                  />
+                  <div className="flex-1 min-h-0">
+                    <WeekDayBox
+                      date={weekGrid[index]}
+                      isToday={weekGrid[index].getTime() === today.getTime()}
+                      onClick={() => handleDayClick(weekGrid[index])}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

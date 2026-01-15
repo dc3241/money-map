@@ -562,6 +562,8 @@ const Recurring: React.FC = () => {
   const [incomeFilter, setIncomeFilter] = useState<string>('');
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('');
   const [incomeCategoryFilter, setIncomeCategoryFilter] = useState<string>('');
+  const [expandedExpenses, setExpandedExpenses] = useState(false);
+  const [expandedIncome, setExpandedIncome] = useState(false);
 
   const handleAddExpense = (data: Omit<RecurringExpense, 'id' | 'createdAt'>) => {
     if (editingExpense) {
@@ -744,7 +746,7 @@ const Recurring: React.FC = () => {
           )}
 
           <div className="space-y-2">
-            {filteredAndSortedExpenses.map((expense) => (
+            {(expandedExpenses ? filteredAndSortedExpenses : filteredAndSortedExpenses.slice(0, 3)).map((expense) => (
               <RecurringItemCard
                 key={expense.id}
                 item={expense}
@@ -759,6 +761,28 @@ const Recurring: React.FC = () => {
                 <div className="font-medium">No recurring expenses found</div>
                 <div className="text-sm mt-1">Add your first recurring expense to get started</div>
               </div>
+            )}
+            {filteredAndSortedExpenses.length > 3 && (
+              <button
+                onClick={() => setExpandedExpenses(!expandedExpenses)}
+                className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {expandedExpenses ? (
+                  <>
+                    <span>Show Less</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </>
+                ) : (
+                  <>
+                    <span>Show All</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </>
+                )}
+              </button>
             )}
           </div>
         </div>
@@ -826,7 +850,7 @@ const Recurring: React.FC = () => {
           )}
 
           <div className="space-y-2">
-            {filteredAndSortedIncome.map((income) => (
+            {(expandedIncome ? filteredAndSortedIncome : filteredAndSortedIncome.slice(0, 3)).map((income) => (
               <RecurringItemCard
                 key={income.id}
                 item={income}
@@ -841,6 +865,28 @@ const Recurring: React.FC = () => {
                 <div className="font-medium">No recurring income found</div>
                 <div className="text-sm mt-1">Add your first recurring income to get started</div>
               </div>
+            )}
+            {filteredAndSortedIncome.length > 3 && (
+              <button
+                onClick={() => setExpandedIncome(!expandedIncome)}
+                className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {expandedIncome ? (
+                  <>
+                    <span>Show Less</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </>
+                ) : (
+                  <>
+                    <span>Show All</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </>
+                )}
+              </button>
             )}
           </div>
         </div>
