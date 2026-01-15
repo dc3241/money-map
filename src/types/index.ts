@@ -149,3 +149,25 @@ export interface DebtPayment {
   transactionId?: string; // ID of the associated spending transaction
 }
 
+// Support ticket types
+export type SupportTicketStatus = 'open' | 'in-progress' | 'resolved' | 'closed';
+
+export interface SupportTicketResponse {
+  message: string;
+  isAdmin: boolean;
+  createdAt: string; // ISO date string
+}
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName?: string;
+  subject: string;
+  message: string;
+  status: SupportTicketStatus;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+  responses: SupportTicketResponse[];
+}
+

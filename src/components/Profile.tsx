@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { format } from 'date-fns';
+import ContactSupport from './ContactSupport';
 
 export default function Profile() {
   const { user, updateProfile, updatePassword, error } = useAuthStore();
@@ -10,7 +11,7 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeSection, setActiveSection] = useState<'profile' | 'password'>('profile');
+  const [activeSection, setActiveSection] = useState<'profile' | 'password' | 'support'>('profile');
   
   // Update display name when user changes
   useEffect(() => {
@@ -145,6 +146,16 @@ export default function Profile() {
               Change Password
             </button>
           )}
+          <button
+            onClick={() => setActiveSection('support')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              activeSection === 'support'
+                ? 'text-emerald-600 border-b-2 border-emerald-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Contact Support
+          </button>
         </div>
 
         {/* Success/Error Messages */}
@@ -258,8 +269,13 @@ export default function Profile() {
           </div>
         )}
 
+        {/* Support Section */}
+        {activeSection === 'support' && (
+          <ContactSupport />
+        )}
+
         {/* Google User Message */}
-        {isGoogleUser && (
+        {isGoogleUser && activeSection !== 'support' && (
           <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
             <p className="font-medium">Google Account</p>
             <p className="text-sm mt-1">

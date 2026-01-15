@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import BottomNavigation from './components/BottomNavigation';
 import SummaryBar from './components/SummaryBar';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import { useBudgetStore } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useWalkthroughStore } from './store/useWalkthroughStore';
@@ -21,6 +22,7 @@ const Login = lazy(() => import('./components/Login'));
 const Home = lazy(() => import('./components/Home'));
 const Walkthrough = lazy(() => import('./components/Walkthrough'));
 const Profile = lazy(() => import('./components/Profile'));
+const AdminPortal = lazy(() => import('./components/AdminPortal'));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -252,6 +254,16 @@ function App() {
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <Suspense fallback={<LoadingSpinner />}>
+                <AdminPortal />
+              </Suspense>
+            </AdminRoute>
           }
         />
       </Routes>

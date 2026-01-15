@@ -6,6 +6,30 @@ service cloud.firestore {
       // Only allow access if the authenticated user's ID matches the document ID
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    
+    // Support tickets
+    match /supportTickets/{ticketId} {
+      // Allow authenticated users to create tickets
+      allow create: if request.auth != null 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.userEmail == request.auth.token.email;
+      
+      // Allow authenticated users to read tickets
+      // Note: Admin filtering is handled in the app UI
+      // Users will only see their own tickets in the UI, admins see all
+      allow read: if request.auth != null;
+      
+      // Allow users to update their own tickets (for adding user responses)
+      allow update: if request.auth != null 
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == resource.data.userId // Prevent changing userId
+                    && request.resource.data.userEmail == resource.data.userEmail; // Prevent changing email
+      
+      // Allow any authenticated user to update tickets
+      // Note: Admin status is checked in the app code before allowing updates
+      // For production, consider using Firebase Custom Claims for better security
+      allow update: if request.auth != null;
+    }
   }
 }
 
