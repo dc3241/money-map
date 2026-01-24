@@ -19,6 +19,7 @@ import {
 
 const Reporting: React.FC = () => {
   const days = useBudgetStore((state) => state.days);
+  const accounts = useBudgetStore((state) => state.accounts);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
@@ -50,8 +51,17 @@ const Reporting: React.FC = () => {
           if (dayData) {
             income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
             const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-            const transfers = (dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0);
-            spending += regularSpending + transfers; // Include transfers in spending for cash flow
+            // Only count transfers to credit cards as spending (paying down debt)
+            const transfers = (dayData.transfers || []).reduce((sum, t) => {
+              if (t.transferToAccountId) {
+                const toAccount = accounts.find((a) => a.id === t.transferToAccountId);
+                if (toAccount && toAccount.type === 'credit_card') {
+                  return sum + t.amount;
+                }
+              }
+              return sum;
+            }, 0);
+            spending += regularSpending + transfers;
           }
         }
       }
@@ -62,7 +72,7 @@ const Reporting: React.FC = () => {
       spending,
       profit: income - spending,
     };
-  }, [days, selectedYear]);
+  }, [days, selectedYear, accounts]);
 
   // Calculate monthly breakdown
   const monthlyBreakdown = useMemo(() => {
