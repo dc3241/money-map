@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { formatDateKey } from '../utils/dateUtils';
 import { getOccurrencesInMonth, migrateOldRecurringExpense, migrateOldRecurringIncome } from '../utils/recurrenceUtils';
@@ -84,6 +84,7 @@ interface StoreActions {
   // Firestore sync
   initializeBudgetData: () => Promise<void>;
   saveToFirestore: () => Promise<void>;
+  resetBudgetDataForLogout: () => void;
   isLoading: boolean;
   isInitialized: boolean;
 }
@@ -185,6 +186,56 @@ function migrateOldData(state: any): any {
   }
 
   return newState;
+}
+
+// User-scoped cache: only read/write when we have a user. Prevents cross-user and cross-device races.
+const CACHE_KEY_PREFIX = 'budget-storage';
+
+function getUserScopedStorage() {
+  return {
+    getItem(key: string): string | null {
+      const user = useAuthStore.getState().user;
+      if (!user) return null;
+      return localStorage.getItem(`${key}-${user.uid}`);
+    },
+    setItem(key: string, value: string): void {
+      const user = useAuthStore.getState().user;
+      if (user) localStorage.setItem(`${key}-${user.uid}`, value);
+    },
+    removeItem(key: string): void {
+      const user = useAuthStore.getState().user;
+      if (user) localStorage.removeItem(`${key}-${user.uid}`);
+    },
+  };
+}
+
+/** Get cache key for current user (for manual rehydration). */
+export function getBudgetCacheKey(uid: string): string {
+  return `${CACHE_KEY_PREFIX}-${uid}`;
+}
+
+/** Apply cached state to store (used when user logs in, before Firestore load). */
+export function rehydrateBudgetCache(uid: string): void {
+  try {
+    const raw = localStorage.getItem(getBudgetCacheKey(uid));
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { state?: Record<string, unknown> };
+    if (!parsed?.state) return;
+    const migrated = migrateOldData(parsed.state);
+    useBudgetStore.setState({
+      days: migrated.days ?? {},
+      recurringExpenses: migrated.recurringExpenses ?? [],
+      recurringIncome: migrated.recurringIncome ?? [],
+      accounts: migrated.accounts ?? [],
+      categories: migrated.categories ?? useBudgetStore.getState().categories,
+      budgets: migrated.budgets ?? [],
+      savingsGoals: migrated.savingsGoals ?? [],
+      debts: migrated.debts ?? [],
+      debtPayments: migrated.debtPayments ?? [],
+    });
+  } catch {
+    // Ignore corrupt or old cache
+  }
 }
 
 // Debounce helper for saveToFirestore
@@ -729,10 +780,12 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             e.id === id ? { ...e, ...expense } : e
           );
           
-          // If accountId, amount, or description was updated, update all existing transactions from this recurring expense
+          // If accountId, amount, or description was updated, update only future transactions (from today forward)
+          // Keep past transactions unchanged - they represent historical events
           if (expense.accountId !== undefined || expense.amount !== undefined || expense.description !== undefined) {
             const updatedDays: Record<string, DayData> = { ...state.days };
             let hasChanges = false;
+            const today = formatDateKey(startOfDay(new Date()));
             
             // If accountId is being updated, get the account's creation date
             let accountCreatedAt: Date | null = null;
@@ -744,6 +797,9 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             }
             
             Object.keys(updatedDays).forEach((dateKey) => {
+              // Only update transactions from today forward - leave past transactions unchanged
+              if (dateKey < today) return;
+              
               const dayData = updatedDays[dateKey];
               let dayHasChanges = false;
               
@@ -874,10 +930,12 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             i.id === id ? { ...i, ...income } : i
           );
           
-          // If accountId, amount, or description was updated, update all existing transactions from this recurring income
+          // If accountId, amount, or description was updated, update only future transactions (from today forward)
+          // Keep past transactions unchanged - they represent historical events
           if (income.accountId !== undefined || income.amount !== undefined || income.description !== undefined) {
             const updatedDays: Record<string, DayData> = { ...state.days };
             let hasChanges = false;
+            const today = formatDateKey(startOfDay(new Date()));
             
             // If accountId is being updated, get the account's creation date
             let accountCreatedAt: Date | null = null;
@@ -889,6 +947,9 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             }
             
             Object.keys(updatedDays).forEach((dateKey) => {
+              // Only update transactions from today forward - leave past transactions unchanged
+              if (dateKey < today) return;
+              
               const dayData = updatedDays[dateKey];
               let dayHasChanges = false;
               
@@ -1982,12 +2043,26 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           }
         }, 500); // 500ms debounce
       },
+
+      resetBudgetDataForLogout: () => {
+        set({
+          days: {},
+          recurringExpenses: [],
+          recurringIncome: [],
+          accounts: [],
+          budgets: [],
+          savingsGoals: [],
+          debts: [],
+          debtPayments: [],
+          isLoading: false,
+          isInitialized: false,
+        });
+      },
     }),
     {
-      name: 'budget-storage',
+      name: CACHE_KEY_PREFIX,
+      storage: createJSONStorage(getUserScopedStorage),
       partialize: (state) => ({
-        // Only persist data, not initialization flags
-        // This ensures each device checks Firestore on login
         days: state.days,
         recurringExpenses: state.recurringExpenses,
         recurringIncome: state.recurringIncome,
@@ -1997,21 +2072,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         savingsGoals: state.savingsGoals,
         debts: state.debts,
         debtPayments: state.debtPayments,
-        // Don't persist isInitialized or isLoading - these should be reset per device
       }),
-      onRehydrateStorage: () => (state) => {
-        // Always allow rehydration for offline support
-        // But initializeBudgetData will check Firestore first and use that if available
-        // Note: isInitialized and isLoading are not persisted (via partialize), so they default to false
-        // This ensures initializeBudgetData will run and check Firestore on each device
-        if (state) {
-          const migratedState = migrateOldData(state);
-          // Update state if migration occurred
-          if (migratedState !== state) {
-            useBudgetStore.setState(migratedState);
-          }
-        }
-      },
+      skipHydration: true, // Rehydrate only after user is known; Firestore is source of truth
     }
   )
 );

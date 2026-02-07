@@ -255,19 +255,17 @@ const Budgets: React.FC = () => {
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
-              {currentBudgets.some(b => b.period === 'monthly') && (
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="px-4 py-2 border-2 border-gray-200 rounded-xl bg-white shadow-sm focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                    <option key={month} value={month}>
-                      {format(new Date(selectedYear, month - 1, 1), 'MMMM')}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="px-4 py-2 border-2 border-gray-200 rounded-xl bg-white shadow-sm focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-all outline-none"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                  <option key={month} value={month}>
+                    {format(new Date(selectedYear, month - 1, 1), 'MMMM')}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl hover:from-slate-700 hover:to-slate-800 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"

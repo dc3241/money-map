@@ -5,7 +5,7 @@ import BottomNavigation from './components/BottomNavigation';
 import SummaryBar from './components/SummaryBar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
-import { useBudgetStore } from './store/useBudgetStore';
+import { useBudgetStore, rehydrateBudgetCache } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useWalkthroughStore } from './store/useWalkthroughStore';
 import { useWalkthroughAutoComplete } from './hooks/useWalkthroughAutoComplete';
@@ -46,24 +46,25 @@ function Dashboard() {
   const hasInitialized = useRef(false);
   const budgetInitialized = useRef(false);
 
-  // Reset initialization flag when user logs out
+  // Reset initialization flag and clear budget data when user logs out
   useEffect(() => {
     if (!user) {
       budgetInitialized.current = false;
       hasInitialized.current = false;
-      useBudgetStore.setState({ isInitialized: false });
+      useBudgetStore.getState().resetBudgetDataForLogout();
       // Reset walkthrough state on logout to ensure clean initialization on next login
-      useWalkthroughStore.setState({ 
+      useWalkthroughStore.setState({
         isLoading: true,
-        isCompleted: false
+        isCompleted: false,
       });
     }
   }, [user]);
 
-  // Initialize budget data when user is loaded (only once per session)
+  // Load budget data when user is set: cache first (offline/instant), then Firestore (source of truth)
   useEffect(() => {
     if (user && !budgetInitialized.current) {
       budgetInitialized.current = true;
+      rehydrateBudgetCache(user.uid);
       initializeBudgetData();
     }
   }, [user, initializeBudgetData]);
