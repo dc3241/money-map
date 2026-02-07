@@ -66,6 +66,7 @@ interface StoreActions {
     remaining: number;
     percentage: number;
   };
+  getBudgetTransactions: (budgetId: string, year: number, month?: number) => { date: string; transaction: Transaction }[];
   // Savings goals management
   addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt' | 'currentAmount'>) => void;
   removeSavingsGoal: (id: string) => void;
@@ -1507,6 +1508,39 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
         
         return { limit: budget.amount, spent, remaining, percentage };
+      },
+
+      getBudgetTransactions: (budgetId, year, month) => {
+        const state = get();
+        const budget = state.budgets.find((b) => b.id === budgetId);
+        if (!budget) return [];
+        const result: { date: string; transaction: Transaction }[] = [];
+        Object.keys(state.days).forEach((dateKey) => {
+          const [y, m] = dateKey.split('-').map(Number);
+          const dayData = state.days[dateKey];
+          if (!dayData?.spending) return;
+          if (budget.period === 'monthly' && month !== undefined) {
+            if (y === year && m === month) {
+              dayData.spending.forEach((tx) => {
+                if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
+              });
+            }
+          } else if (budget.period === 'yearly') {
+            if (y === year) {
+              dayData.spending.forEach((tx) => {
+                if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
+              });
+            }
+          } else if (budget.period === 'weekly') {
+            if (y === year && month !== undefined && m === month) {
+              dayData.spending.forEach((tx) => {
+                if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
+              });
+            }
+          }
+        });
+        result.sort((a, b) => a.date.localeCompare(b.date));
+        return result;
       },
 
       // Savings goals management

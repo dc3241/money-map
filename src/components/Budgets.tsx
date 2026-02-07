@@ -9,6 +9,7 @@ const Budgets: React.FC = () => {
   const removeBudget = useBudgetStore((state) => state.removeBudget);
   const updateBudget = useBudgetStore((state) => state.updateBudget);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
+  const getBudgetTransactions = useBudgetStore((state) => state.getBudgetTransactions);
   const addCategory = useBudgetStore((state) => state.addCategory);
   const removeCategory = useBudgetStore((state) => state.removeCategory);
   const updateCategory = useBudgetStore((state) => state.updateCategory);
@@ -16,6 +17,7 @@ const Budgets: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [reportBudgetId, setReportBudgetId] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -463,20 +465,34 @@ const Budgets: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Are you sure you want to delete this budget?')) {
-                              removeBudget(budget.id);
-                            }
-                          }}
-                          className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
-                          title="Delete budget"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReportBudgetId(budget.id);
+                            }}
+                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
+                            title="View transactions"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('Are you sure you want to delete this budget?')) {
+                                removeBudget(budget.id);
+                              }
+                            }}
+                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
+                            title="Delete budget"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                       
                       {/* Circular Progress */}
@@ -505,11 +521,16 @@ const Budgets: React.FC = () => {
                             />
                           </svg>
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-3xl font-bold">{Math.round(Math.min(status.percentage, 100))}%</div>
-                              {isOverBudget && (
-                                <div className="text-xs mt-1 animate-pulse">⚠️ Over Budget!</div>
-                              )}
+                            <div
+                              className="w-[88px] h-[88px] flex items-center justify-center overflow-hidden text-center"
+                              style={{ clipPath: 'circle(44px at 50% 50%)' }}
+                            >
+                              <div>
+                                <div className="text-3xl font-bold">{Math.round(Math.min(status.percentage, 100))}%</div>
+                                {isOverBudget && (
+                                  <div className="text-xs mt-1 animate-pulse">⚠️ Over Budget!</div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -774,6 +795,63 @@ const Budgets: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Budget Transactions Modal (Budget Goals cards only) */}
+        {reportBudgetId && (() => {
+          const reportBudget = budgets.find((b) => b.id === reportBudgetId);
+          const reportCategory = reportBudget ? categories.find((c) => c.id === reportBudget.categoryId) : null;
+          const periodLabel = reportBudget?.period === 'monthly' ? 'Monthly' : reportBudget?.period === 'yearly' ? 'Yearly' : 'Weekly';
+          const dateLabel = reportBudget?.period === 'yearly'
+            ? `${selectedYear}`
+            : `${format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy')}`;
+          const transactions = reportBudget ? getBudgetTransactions(reportBudgetId, selectedYear, selectedMonth) : [];
+          return (
+            <div
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={() => setReportBudgetId(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-gray-100">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {reportCategory?.icon || '📌'} {reportCategory?.name || reportBudget?.categoryId} – {periodLabel} – {dateLabel}
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">Transactions in this budget</p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-6">
+                  {transactions.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No transactions in this period.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {transactions.map(({ date, transaction }) => (
+                        <li
+                          key={`${date}-${transaction.id}`}
+                          className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-gray-900 truncate">{transaction.description || 'No description'}</p>
+                            <p className="text-xs text-gray-500">{format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}</p>
+                          </div>
+                          <span className="text-red-600 font-semibold ml-2 shrink-0">{formatCurrency(transaction.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="p-6 border-t border-gray-100">
+                  <button
+                    onClick={() => setReportBudgetId(null)}
+                    className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Create/Edit Category Modal */}
         {showCategoryModal && (
