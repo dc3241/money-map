@@ -138,20 +138,20 @@ const SavingsGoals: React.FC = () => {
   const totalTarget = goals.reduce((sum, goal) => sum + goal.targetAmount, 0);
   
   return (
-    <div className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 via-slate-50/50 to-gray-100 min-h-screen">
+    <div className="flex-1 overflow-y-auto bg-bg-app min-h-screen">
       <div className="max-w-7xl mx-auto p-6 md:p-8">
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-2">
+              <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Savings Goals
               </h1>
-              <p className="text-gray-600 text-lg">Track your progress toward financial milestones</p>
+              <p className="text-text-muted text-sm">Track your progress toward financial milestones</p>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl hover:from-emerald-600 hover:to-emerald-700 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 flex items-center gap-2"
             >
               <span className="text-xl">+</span>
               <span>Add Goal</span>
@@ -161,17 +161,17 @@ const SavingsGoals: React.FC = () => {
           {/* Summary Cards */}
           {goals.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Total Saved</div>
-                <div className="text-3xl font-bold text-emerald-600">{formatCurrency(totalCurrent)}</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Total Saved</div>
+                <div className="text-3xl font-semibold text-income-green">{formatCurrency(totalCurrent)}</div>
               </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Total Target</div>
-                <div className="text-3xl font-bold text-gray-900">{formatCurrency(totalTarget)}</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Total Target</div>
+                <div className="text-3xl font-semibold text-text-primary">{formatCurrency(totalTarget)}</div>
               </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Average Progress</div>
-                <div className="text-3xl font-bold text-blue-600">{totalProgress.toFixed(1)}%</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Average Progress</div>
+                <div className="text-3xl font-semibold text-income-green">{totalProgress.toFixed(1)}%</div>
               </div>
             </div>
           )}
@@ -186,173 +186,117 @@ const SavingsGoals: React.FC = () => {
               const timeRemaining = getTimeRemaining(goal.targetDate);
               const isComplete = progress.percentage >= 100;
               const icon = getGoalIcon(goal.name);
-              
-              // Gradient colors based on progress - matching sidebar slate-900 theme
-              const gradientColors = isComplete
-                ? 'from-emerald-500 via-emerald-600 to-emerald-700'
-                : progress.percentage > 50
-                ? 'from-slate-700 via-slate-800 to-slate-900'
-                : 'from-slate-600 via-slate-700 to-slate-800';
+              const progressFillClass = isComplete ? 'bg-income-green' : progress.percentage >= 75 ? 'bg-amber' : 'bg-income-green';
+              const timeBadgeClass = timeRemaining.urgency === 'high' ? 'bg-spending-red-dim text-spending-red' :
+                timeRemaining.urgency === 'medium' ? 'bg-amber/10 text-amber' : 'bg-surface-2 text-text-secondary';
               
               return (
                 <div
                   key={goal.id}
-                  className={`group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 transform hover:scale-[1.02] cursor-pointer ${
-                    isComplete ? 'ring-2 ring-emerald-400 ring-opacity-50' : ''
-                  }`}
+                  className="group bg-surface-1 border border-border-subtle rounded-xl hover:border-border-hover transition-all duration-200 overflow-hidden p-6 cursor-pointer"
                   onClick={() => handleEditGoal(goal.id)}
                 >
-                  {/* Gradient Header */}
-                  <div className={`bg-gradient-to-r ${gradientColors} p-6 text-white relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
-                    
-                    <div className="relative z-10">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="text-4xl">{icon}</div>
-                          <div>
-                            <h3 className="text-xl font-bold">{goal.name}</h3>
-                            {account && (
-                              <p className="text-sm text-white/80 mt-0.5">{account.name}</p>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Are you sure you want to delete this goal?')) {
-                              removeSavingsGoal(goal.id);
-                            }
-                          }}
-                          className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
-                          title="Delete goal"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      {/* Circular Progress */}
-                      <div className="flex items-center justify-center my-6">
-                        <div className="relative w-32 h-32">
-                          <svg className="transform -rotate-90 w-32 h-32">
-                            <circle
-                              cx="64"
-                              cy="64"
-                              r="56"
-                              stroke="rgba(255,255,255,0.3)"
-                              strokeWidth="12"
-                              fill="none"
-                            />
-                            <circle
-                              cx="64"
-                              cy="64"
-                              r="56"
-                              stroke="white"
-                              strokeWidth="12"
-                              fill="none"
-                              strokeDasharray={`${2 * Math.PI * 56}`}
-                              strokeDashoffset={`${2 * Math.PI * 56 * (1 - progress.percentage / 100)}`}
-                              strokeLinecap="round"
-                              className="transition-all duration-1000 ease-out"
-                            />
-                          </svg>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-3xl font-bold">{Math.round(progress.percentage)}%</div>
-                              {isComplete && (
-                                <div className="text-xs mt-1 animate-pulse">🎉 Complete!</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl bg-surface-2 rounded-xl px-2 py-1">{icon}</div>
+                      <div>
+                        <h3 className="text-text-primary font-semibold text-sm">{goal.name}</h3>
+                        {account && (
+                          <p className="text-text-muted text-xs mt-0.5">{account.name}</p>
+                        )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-6">
-                    {/* Amounts */}
-                    <div className="space-y-3 mb-6">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-sm text-gray-600">Current</span>
-                        <span className="text-2xl font-bold text-emerald-600">
-                          {formatCurrency(goal.currentAmount)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-sm text-gray-600">Target</span>
-                        <span className="text-xl font-semibold text-gray-900">
-                          {formatCurrency(goal.targetAmount)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline pt-2 border-t border-gray-100">
-                        <span className="text-sm text-gray-600">Remaining</span>
-                        <span className="text-lg font-semibold text-gray-700">
-                          {formatCurrency(goal.targetAmount - goal.currentAmount)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Linear Progress Bar */}
-                    <div className="mb-4">
-                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${gradientColors} transition-all duration-1000 ease-out shadow-sm`}
-                          style={{ width: `${Math.min(progress.percentage, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Time Remaining */}
-                    {goal.targetDate && (
-                      <div className={`mb-4 px-3 py-2 rounded-lg ${
-                        timeRemaining.urgency === 'high' ? 'bg-red-50 text-red-700' :
-                        timeRemaining.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700' :
-                        'bg-blue-50 text-blue-700'
-                      }`}>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium">
-                            {format(new Date(goal.targetDate), 'MMM d, yyyy')}
-                          </span>
-                          <span className="font-semibold">{timeRemaining.text}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Add Money Button */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowAddMoneyModal(goal.id);
+                        if (confirm('Are you sure you want to delete this goal?')) {
+                          removeSavingsGoal(goal.id);
+                        }
                       }}
-                      disabled={isComplete}
-                      className={`w-full px-4 py-3 rounded-xl font-semibold transition-all duration-200 ${
-                        isComplete
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-md hover:shadow-lg transform hover:scale-105'
-                      }`}
+                      className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-lg"
+                      title="Delete goal"
                     >
-                      {isComplete ? '✓ Goal Achieved!' : '+ Add Money'}
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
                   </div>
+
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="w-full bg-surface-3 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${progressFillClass} transition-all duration-500 ease-out`}
+                        style={{ width: `${Math.min(progress.percentage, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-text-muted text-xs mt-1">{Math.round(progress.percentage)}% complete</div>
+                  </div>
+
+                  {/* Amounts */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-text-muted text-xs">Current</span>
+                      <span className="text-income-green font-semibold tabular-nums">
+                        {formatCurrency(goal.currentAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-text-muted text-xs">Target</span>
+                      <span className="text-text-secondary text-sm tabular-nums">
+                        {formatCurrency(goal.targetAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline pt-2 border-t border-border-subtle">
+                      <span className="text-text-muted text-xs">Remaining</span>
+                      <span className="text-text-secondary text-sm font-medium tabular-nums">
+                        {formatCurrency(goal.targetAmount - goal.currentAmount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Time Remaining */}
+                  {goal.targetDate && (
+                    <div className={`mb-4 px-3 py-2 rounded-lg text-xs ${timeBadgeClass}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">
+                          {format(new Date(goal.targetDate), 'MMM d, yyyy')}
+                        </span>
+                        <span className="font-semibold">{timeRemaining.text}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add Money Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAddMoneyModal(goal.id);
+                    }}
+                    disabled={isComplete}
+                    className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                      isComplete
+                        ? 'bg-surface-2 text-text-muted cursor-not-allowed'
+                        : 'bg-accent text-white hover:opacity-90'
+                    }`}
+                  >
+                    {isComplete ? '✓ Goal Achieved!' : '+ Add Money'}
+                  </button>
                 </div>
               );
             })}
           </div>
         ) : (
           <div className="text-center py-20">
-            <div className="max-w-md mx-auto">
+            <div className="max-w-md mx-auto bg-surface-1 border border-dashed border-border-subtle rounded-xl p-12">
               <div className="text-8xl mb-6">🎯</div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">Start Your Savings Journey</h2>
-              <p className="text-gray-600 text-lg mb-8">
+              <h2 className="text-2xl font-semibold text-text-primary mb-3">Start Your Savings Journey</h2>
+              <p className="text-text-muted text-sm mb-8">
                 Create your first savings goal and watch your progress grow. Every milestone counts!
               </p>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl hover:from-emerald-600 hover:to-emerald-700 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 text-lg"
+                className="px-8 py-4 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 text-lg"
               >
                 Create Your First Goal
               </button>
@@ -367,62 +311,62 @@ const SavingsGoals: React.FC = () => {
             onClick={() => setShowAddModal(false)}
           >
             <div 
-              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-semibold text-text-primary mb-6">
                 Create Savings Goal
               </h2>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Goal Name
                   </label>
                   <input
                     type="text"
                     value={newGoalName}
                     onChange={(e) => setNewGoalName(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., Emergency Fund, Vacation, Car..."
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Target Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={newGoalTarget}
                       onChange={(e) => setNewGoalTarget(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Target Date <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Target Date <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <input
                     type="date"
                     value={newGoalDate}
                     onChange={(e) => setNewGoalDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Account <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Account <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <select
                     value={newGoalAccount}
                     onChange={(e) => setNewGoalAccount(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none bg-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     <option value="">No specific account</option>
                     {accounts.map((account) => (
@@ -435,7 +379,7 @@ const SavingsGoals: React.FC = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleAddGoal}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
                   >
                     Create Goal
                   </button>
@@ -447,7 +391,7 @@ const SavingsGoals: React.FC = () => {
                       setNewGoalDate('');
                       setNewGoalAccount('');
                     }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
                     Cancel
                   </button>
@@ -467,62 +411,62 @@ const SavingsGoals: React.FC = () => {
             }}
           >
             <div 
-              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-semibold text-text-primary mb-6">
                 Edit Savings Goal
               </h2>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Goal Name
                   </label>
                   <input
                     type="text"
                     value={editGoalName}
                     onChange={(e) => setEditGoalName(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., Emergency Fund, Vacation, Car..."
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Target Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={editGoalTarget}
                       onChange={(e) => setEditGoalTarget(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Target Date <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Target Date <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <input
                     type="date"
                     value={editGoalDate}
                     onChange={(e) => setEditGoalDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Account <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Account <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <select
                     value={editGoalAccount}
                     onChange={(e) => setEditGoalAccount(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none bg-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     <option value="">No specific account</option>
                     {accounts.map((account) => (
@@ -535,7 +479,7 @@ const SavingsGoals: React.FC = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleUpdateGoal}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
                   >
                     Update Goal
                   </button>
@@ -544,7 +488,7 @@ const SavingsGoals: React.FC = () => {
                       setShowEditModal(false);
                       setEditingGoalId(null);
                     }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
                     Cancel
                   </button>
@@ -566,54 +510,54 @@ const SavingsGoals: React.FC = () => {
             }}
           >
             <div 
-              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-semibold text-text-primary mb-2">
                 Add Money
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-text-muted mb-6">
                 {goals.find(g => g.id === showAddMoneyModal)?.name}
               </p>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Amount to Add
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-xl">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium text-xl">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={addMoneyAmount}
                       onChange={(e) => setAddMoneyAmount(e.target.value)}
-                      className="w-full pl-10 pr-4 py-4 text-2xl border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none font-semibold"
+                      className="w-full pl-10 pr-4 py-4 text-2xl bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none font-semibold transition-all"
                       placeholder="0.00"
                       autoFocus
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Date
                   </label>
                   <input
                     type="date"
                     value={addMoneyDate}
                     onChange={(e) => setAddMoneyDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   />
                 </div>
                 {accounts.length > 0 && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      From Account <span className="text-gray-400 font-normal">(optional)</span>
+                    <label className="block text-sm text-text-secondary mb-2">
+                      From Account <span className="text-text-muted font-normal">(optional)</span>
                     </label>
                     <select
                       value={addMoneyAccount}
                       onChange={(e) => setAddMoneyAccount(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none bg-white"
+                      className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     >
                       <option value="">No account selected</option>
                       {accounts.map((account) => (
@@ -627,7 +571,7 @@ const SavingsGoals: React.FC = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => handleAddMoney(showAddMoneyModal)}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
                   >
                     Add Money
                   </button>
@@ -638,7 +582,7 @@ const SavingsGoals: React.FC = () => {
                       setAddMoneyDate(new Date().toISOString().split('T')[0]);
                       setAddMoneyAccount('');
                     }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
                     Cancel
                   </button>

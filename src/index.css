@@ -4,7 +4,9 @@
 
 body {
   margin: 0;
-  font-family: theme('fontFamily.sans');
+  background-color: #080D18;
+  color: #F0F4FF;
+  font-family: 'DM Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

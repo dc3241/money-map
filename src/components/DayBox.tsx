@@ -27,38 +27,37 @@ const DayBox: React.FC<DayBoxProps> = ({ date, isCurrentMonth, onClick, isToday 
   return (
     <div
       className={`
-        relative bg-white border border-gray-200 rounded-lg p-2.5 min-h-0 h-full cursor-pointer 
-        shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 flex flex-col overflow-hidden
-        ${!isCurrentMonth ? 'bg-gray-50 opacity-40' : ''}
-        ${isToday ? 'ring-2 ring-blue-500' : ''}
+        relative rounded-xl p-2.5 min-h-0 h-full cursor-pointer transition-all duration-200 flex flex-col overflow-hidden border
+        ${isToday ? 'border-2 border-accent bg-surface-3' : 'bg-surface-2 border-border-subtle hover:border-border-hover hover:bg-surface-3'}
+        ${!isCurrentMonth && !isToday ? 'bg-surface-1 opacity-40' : ''}
       `}
       onClick={onClick}
     >
       {/* Day Number - Top Right */}
-      <div className="absolute top-2 right-2 text-xs font-medium text-gray-400 z-10">
+      <div className={`absolute top-2 right-2 z-10 text-xs font-medium ${isToday ? 'text-accent font-semibold' : 'text-text-muted'} ${!isCurrentMonth ? 'opacity-40' : ''}`}>
         {format(date, 'd')}
       </div>
       
       <div className="flex flex-col gap-2 mb-1.5 flex-1 min-h-0 mt-5 overflow-hidden">
         {/* Income Section */}
-        <div className="border-l-4 border-emerald-500 pl-2 py-1 hover:bg-emerald-50 transition-colors rounded-r overflow-hidden">
+        <div className="border-l-2 border-income-green bg-income-green-dim pl-2 py-1 rounded-md overflow-hidden">
           <div className="flex justify-between items-center">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <div className="text-xs text-text-secondary">
               Income
             </div>
-            <div className="text-xs font-semibold tabular-nums text-emerald-600">
+            <div className="text-xs font-semibold tabular-nums text-income-green">
               {formatCurrency(totals.income)}
             </div>
           </div>
         </div>
 
         {/* Spending Section */}
-        <div className="border-l-4 border-rose-500 pl-2 py-1 hover:bg-rose-50 transition-colors rounded-r overflow-hidden">
+        <div className="border-l-2 border-spending-red bg-spending-red-dim pl-2 py-1 rounded-md overflow-hidden">
           <div className="flex justify-between items-center">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <div className="text-xs text-text-secondary">
               Spending
             </div>
-            <div className="text-xs font-semibold tabular-nums text-rose-600">
+            <div className="text-xs font-semibold tabular-nums text-spending-red">
               {formatCurrency(totals.spending)}
             </div>
           </div>
@@ -66,10 +65,12 @@ const DayBox: React.FC<DayBoxProps> = ({ date, isCurrentMonth, onClick, isToday 
       </div>
 
       {/* Daily Net */}
-      <div className={`text-sm font-semibold tabular-nums mt-auto text-center rounded px-2 py-1.5 shrink-0 bg-gray-50 truncate ${
-        totals.profit >= 0 
-          ? 'text-emerald-700' 
-          : 'text-rose-700'
+      <div className={`text-sm font-semibold tabular-nums mt-auto text-center rounded-md px-2 py-1.5 shrink-0 bg-surface-1 truncate ${
+        totals.profit > 0
+          ? 'text-income-green'
+          : totals.profit < 0
+            ? 'text-spending-red'
+            : 'text-text-muted'
       }`}>
         {totals.profit >= 0 ? '+' : ''}{formatCurrency(totals.profit)}
       </div>

@@ -218,8 +218,19 @@ const Reporting: React.FC = () => {
     };
   }, [annualTotals, selectedYear]);
 
-  // Chart colors
-  const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#6366f1'];
+  // Chart colors (design tokens)
+  const CHART_GRID_STROKE = '#1A2238'; // surface-3
+  const CHART_TICK_FILL = '#4A5270'; // text-muted
+  const TOOLTIP_STYLE = {
+    contentStyle: { background: '#0F1524', border: '1px solid rgba(255,255,255,0.07)', color: '#F0F4FF', borderRadius: '8px' },
+  };
+  const LEGEND_STYLE = { fill: '#8B95B0' };
+  const RECURRING_PIE_COLORS: Record<string, string> = {
+    'Recurring Income': '#34C98A',
+    'One-Time Income': '#2DD4BF',
+    'Recurring Spending': '#FF5A5A',
+    'One-Time Spending': '#F5A623',
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -244,16 +255,16 @@ const Reporting: React.FC = () => {
   ].filter(item => item.value > 0);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50 p-8">
+    <div className="flex-1 overflow-y-auto bg-bg-app p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Financial Reports</h1>
+          <h1 className="text-3xl font-semibold text-text-primary">Financial Reports</h1>
           <div className="flex gap-3">
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-secondary font-medium focus:outline-none focus:border-accent focus:ring-0 transition-all"
             >
               {availableYears.map((year) => (
                 <option key={year} value={year}>
@@ -266,106 +277,106 @@ const Reporting: React.FC = () => {
 
         {/* Annual Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-emerald-500">
-            <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Annual Income</h3>
-            <p className="text-3xl font-bold text-emerald-600">{formatCurrency(annualTotals.income)}</p>
+          <div className="bg-surface-1 border border-border-subtle border-l-2 border-l-income-green rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+            <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-2">Annual Income</h3>
+            <p className="text-3xl font-semibold text-income-green">{formatCurrency(annualTotals.income)}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-rose-500">
-            <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Annual Spending</h3>
-            <p className="text-3xl font-bold text-rose-600">{formatCurrency(annualTotals.spending)}</p>
+          <div className="bg-surface-1 border border-border-subtle border-l-2 border-l-spending-red rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+            <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-2">Annual Spending</h3>
+            <p className="text-3xl font-semibold text-spending-red">{formatCurrency(annualTotals.spending)}</p>
           </div>
-          <div className={`bg-white rounded-lg shadow-md p-6 border-l-4 ${annualTotals.profit >= 0 ? 'border-emerald-500' : 'border-rose-500'}`}>
-            <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Net Profit</h3>
-            <p className={`text-3xl font-bold ${annualTotals.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+          <div className="bg-surface-1 border border-border-subtle border-l-2 border-l-accent rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+            <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-2">Net Profit</h3>
+            <p className={`text-3xl font-semibold ${annualTotals.profit >= 0 ? 'text-income-green' : 'text-spending-red'}`}>
               {annualTotals.profit >= 0 ? '+' : ''}{formatCurrency(annualTotals.profit)}
             </p>
           </div>
         </div>
 
         {/* Savings Rate */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Savings Rate</h2>
+        <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+          <h2 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-4">Savings Rate</h2>
           <div className="flex items-center space-x-4">
             <div className="flex-1">
-              <div className="w-full bg-gray-200 rounded-full h-6">
+              <div className="w-full bg-surface-3 rounded-full h-2 overflow-hidden">
                 <div
-                  className={`h-6 rounded-full flex items-center justify-end pr-2 ${savingsRate >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                  className={`h-2 rounded-full flex items-center justify-end pr-2 ${savingsRate >= 0 ? 'bg-income-green' : 'bg-spending-red'}`}
                   style={{ width: `${Math.min(Math.abs(savingsRate), 100)}%` }}
                 >
                   {Math.abs(savingsRate) > 5 && (
-                    <span className="text-white text-sm font-semibold">{savingsRate.toFixed(1)}%</span>
+                    <span className="text-white text-xs font-semibold">{savingsRate.toFixed(1)}%</span>
                   )}
                 </div>
               </div>
             </div>
-            <span className={`text-2xl font-bold min-w-[80px] text-right ${savingsRate >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <span className={`text-2xl font-semibold min-w-[80px] text-right tabular-nums ${savingsRate >= 0 ? 'text-income-green' : 'text-spending-red'}`}>
               {savingsRate.toFixed(1)}%
             </span>
           </div>
         </div>
 
         {/* Monthly Trends Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Monthly Income & Spending Trends</h2>
+        <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+          <h2 className="text-text-primary text-xl font-semibold mb-6">Monthly Income & Spending Trends</h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={monthlyChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
-              <Legend />
-              <Line type="monotone" dataKey="Income" stroke="#10b981" strokeWidth={2} />
-              <Line type="monotone" dataKey="Spending" stroke="#ef4444" strokeWidth={2} />
-              <Line type="monotone" dataKey="Net" stroke="#3b82f6" strokeWidth={2} />
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+              <XAxis dataKey="month" tick={{ fill: CHART_TICK_FILL }} />
+              <YAxis tick={{ fill: CHART_TICK_FILL }} />
+              <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} contentStyle={TOOLTIP_STYLE.contentStyle} />
+              <Legend wrapperStyle={LEGEND_STYLE} />
+              <Line type="monotone" dataKey="Income" stroke="#34C98A" strokeWidth={2} />
+              <Line type="monotone" dataKey="Spending" stroke="#FF5A5A" strokeWidth={2} />
+              <Line type="monotone" dataKey="Net" stroke="#4F7FFF" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
         {/* Monthly Breakdown Bar Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Monthly Breakdown</h2>
+        <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+          <h2 className="text-text-primary text-xl font-semibold mb-6">Monthly Breakdown</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthlyChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
-              <Legend />
-              <Bar dataKey="Income" fill="#10b981" />
-              <Bar dataKey="Spending" fill="#ef4444" />
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+              <XAxis dataKey="month" tick={{ fill: CHART_TICK_FILL }} />
+              <YAxis tick={{ fill: CHART_TICK_FILL }} />
+              <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} contentStyle={TOOLTIP_STYLE.contentStyle} />
+              <Legend wrapperStyle={LEGEND_STYLE} />
+              <Bar dataKey="Income" fill="#34C98A" />
+              <Bar dataKey="Spending" fill="#FF5A5A" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Monthly Breakdown Table */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Monthly Details</h2>
+        <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+          <h2 className="text-text-primary text-xl font-semibold mb-6">Monthly Details</h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Month</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Income</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Spending</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Net</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Income Δ</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Spending Δ</th>
+                <tr className="bg-surface-2 border-b border-border-subtle">
+                  <th className="text-left py-3 px-4 text-text-muted text-xs uppercase tracking-widest font-medium">Month</th>
+                  <th className="text-right py-3 px-4 text-text-muted text-xs uppercase tracking-widest font-medium">Income</th>
+                  <th className="text-right py-3 px-4 text-text-muted text-xs uppercase tracking-widest font-medium">Spending</th>
+                  <th className="text-right py-3 px-4 text-text-muted text-xs uppercase tracking-widest font-medium">Net</th>
+                  <th className="text-right py-3 px-4 text-text-muted text-xs uppercase tracking-widest font-medium">Income Δ</th>
+                  <th className="text-right py-3 px-4 text-text-muted text-xs uppercase tracking-widest font-medium">Spending Δ</th>
                 </tr>
               </thead>
               <tbody>
                 {monthlyTrends.map((month) => (
-                  <tr key={month.month} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 font-medium text-gray-900">{month.monthNameFull}</td>
-                    <td className="py-3 px-4 text-right text-emerald-600 font-medium">{formatCurrency(month.income)}</td>
-                    <td className="py-3 px-4 text-right text-rose-600 font-medium">{formatCurrency(month.spending)}</td>
-                    <td className={`py-3 px-4 text-right font-medium ${month.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  <tr key={month.month} className="border-b border-border-subtle hover:bg-surface-2 transition-colors">
+                    <td className="py-3 px-4 text-text-primary text-sm font-medium">{month.monthNameFull}</td>
+                    <td className="py-3 px-4 text-right text-income-green font-medium tabular-nums">{formatCurrency(month.income)}</td>
+                    <td className="py-3 px-4 text-right text-spending-red font-medium tabular-nums">{formatCurrency(month.spending)}</td>
+                    <td className={`py-3 px-4 text-right font-medium tabular-nums ${month.profit >= 0 ? 'text-income-green' : 'text-spending-red'}`}>
                       {month.profit >= 0 ? '+' : ''}{formatCurrency(month.profit)}
                     </td>
-                    <td className={`py-3 px-4 text-right font-medium ${month.incomeChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <td className={`py-3 px-4 text-right text-xs tabular-nums ${month.incomeChange === 0 ? 'text-text-muted' : month.incomeChange > 0 ? 'text-income-green' : 'text-spending-red'}`}>
                       {month.incomeChange !== 0 && (month.incomeChange >= 0 ? '+' : '')}
                       {month.incomeChange !== 0 ? `${month.incomeChange.toFixed(1)}%` : '-'}
                     </td>
-                    <td className={`py-3 px-4 text-right font-medium ${month.spendingChange >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    <td className={`py-3 px-4 text-right text-xs tabular-nums ${month.spendingChange === 0 ? 'text-text-muted' : month.spendingChange > 0 ? 'text-spending-red' : 'text-income-green'}`}>
                       {month.spendingChange !== 0 && (month.spendingChange >= 0 ? '+' : '')}
                       {month.spendingChange !== 0 ? `${month.spendingChange.toFixed(1)}%` : '-'}
                     </td>
@@ -378,38 +389,38 @@ const Reporting: React.FC = () => {
 
         {/* Averages and Projections */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Averages</h2>
+          <div className="bg-surface-1 border border-border-subtle rounded-xl p-6">
+            <h2 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-4">Averages</h2>
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Monthly</h3>
+                <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-2">Monthly</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Income:</span>
-                    <span className="font-semibold text-emerald-600">{formatCurrency(averages.monthlyIncome)}</span>
+                    <span className="text-text-secondary text-sm">Income:</span>
+                    <span className="font-semibold text-income-green tabular-nums">{formatCurrency(averages.monthlyIncome)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Spending:</span>
-                    <span className="font-semibold text-rose-600">{formatCurrency(averages.monthlySpending)}</span>
+                    <span className="text-text-secondary text-sm">Spending:</span>
+                    <span className="font-semibold text-spending-red tabular-nums">{formatCurrency(averages.monthlySpending)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Net:</span>
-                    <span className={`font-semibold ${averages.monthlyProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className="text-text-secondary text-sm">Net:</span>
+                    <span className={`font-semibold tabular-nums ${averages.monthlyProfit >= 0 ? 'text-income-green' : 'text-spending-red'}`}>
                       {averages.monthlyProfit >= 0 ? '+' : ''}{formatCurrency(averages.monthlyProfit)}
                     </span>
                   </div>
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Daily</h3>
+                <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-2">Daily</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Income:</span>
-                    <span className="font-semibold text-emerald-600">{formatCurrency(averages.dailyIncome)}</span>
+                    <span className="text-text-secondary text-sm">Income:</span>
+                    <span className="font-semibold text-income-green tabular-nums">{formatCurrency(averages.dailyIncome)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Spending:</span>
-                    <span className="font-semibold text-rose-600">{formatCurrency(averages.dailySpending)}</span>
+                    <span className="text-text-secondary text-sm">Spending:</span>
+                    <span className="font-semibold text-spending-red tabular-nums">{formatCurrency(averages.dailySpending)}</span>
                   </div>
                 </div>
               </div>
@@ -417,21 +428,21 @@ const Reporting: React.FC = () => {
           </div>
 
           {projections && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Year-End Projections</h2>
-              <p className="text-sm text-gray-600 mb-4">Based on current year averages</p>
+            <div className="bg-surface-1 border border-border-subtle rounded-xl p-6">
+              <h2 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-4">Year-End Projections</h2>
+              <p className="text-text-muted text-sm mb-4">Based on current year averages</p>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Projected Income:</span>
-                  <span className="font-semibold text-emerald-600">{formatCurrency(projections.projectedIncome)}</span>
+                  <span className="text-text-secondary text-sm">Projected Income:</span>
+                  <span className="font-semibold text-income-green tabular-nums">{formatCurrency(projections.projectedIncome)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Projected Spending:</span>
-                  <span className="font-semibold text-rose-600">{formatCurrency(projections.projectedSpending)}</span>
+                  <span className="text-text-secondary text-sm">Projected Spending:</span>
+                  <span className="font-semibold text-spending-red tabular-nums">{formatCurrency(projections.projectedSpending)}</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-gray-200">
-                  <span className="text-gray-900 font-semibold">Projected Net:</span>
-                  <span className={`font-bold text-lg ${projections.projectedProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <div className="flex justify-between pt-2 border-t border-border-subtle">
+                  <span className="text-text-primary font-semibold text-sm">Projected Net:</span>
+                  <span className={`font-semibold text-lg tabular-nums ${projections.projectedProfit >= 0 ? 'text-income-green' : 'text-spending-red'}`}>
                     {projections.projectedProfit >= 0 ? '+' : ''}{formatCurrency(projections.projectedProfit)}
                   </span>
                 </div>
@@ -442,15 +453,15 @@ const Reporting: React.FC = () => {
 
         {/* Top Spending Categories */}
         {topSpendingCategories.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Top Spending Categories</h2>
+          <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+            <h2 className="text-text-primary text-xl font-semibold mb-6">Top Spending Categories</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topSpendingCategories} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={150} />
-                <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
-                <Bar dataKey="value" fill="#ef4444" />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                <XAxis type="number" tick={{ fill: CHART_TICK_FILL }} />
+                <YAxis dataKey="name" type="category" width={150} tick={{ fill: CHART_TICK_FILL, fontSize: 12 }} />
+                <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} contentStyle={TOOLTIP_STYLE.contentStyle} />
+                <Bar dataKey="value" fill="#FF5A5A" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -458,15 +469,15 @@ const Reporting: React.FC = () => {
 
         {/* Top Income Sources */}
         {topIncomeSources.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Top Income Sources</h2>
+          <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+            <h2 className="text-text-primary text-xl font-semibold mb-6">Top Income Sources</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topIncomeSources} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={150} />
-                <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
-                <Bar dataKey="value" fill="#10b981" />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+                <XAxis type="number" tick={{ fill: CHART_TICK_FILL }} />
+                <YAxis dataKey="name" type="category" width={150} tick={{ fill: CHART_TICK_FILL, fontSize: 12 }} />
+                <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} contentStyle={TOOLTIP_STYLE.contentStyle} />
+                <Bar dataKey="value" fill="#34C98A" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -474,32 +485,32 @@ const Reporting: React.FC = () => {
 
         {/* Recurring vs One-Time */}
         {recurringVsOneTimeData.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Recurring vs One-Time Transactions</h2>
+          <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+            <h2 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-6">Recurring vs One-Time Transactions</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="pr-4">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-4">Breakdown</h3>
+                <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-4">Breakdown</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Recurring Income:</span>
-                    <span className="font-semibold text-emerald-600">{formatCurrency(transactionAnalysis.recurringIncome)}</span>
+                    <span className="text-text-secondary text-sm">Recurring Income:</span>
+                    <span className="font-semibold text-income-green tabular-nums">{formatCurrency(transactionAnalysis.recurringIncome)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">One-Time Income:</span>
-                    <span className="font-semibold text-emerald-600">{formatCurrency(transactionAnalysis.oneTimeIncome)}</span>
+                    <span className="text-text-secondary text-sm">One-Time Income:</span>
+                    <span className="font-semibold text-income-green tabular-nums">{formatCurrency(transactionAnalysis.oneTimeIncome)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Recurring Spending:</span>
-                    <span className="font-semibold text-rose-600">{formatCurrency(transactionAnalysis.recurringSpending)}</span>
+                    <span className="text-text-secondary text-sm">Recurring Spending:</span>
+                    <span className="font-semibold text-spending-red tabular-nums">{formatCurrency(transactionAnalysis.recurringSpending)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">One-Time Spending:</span>
-                    <span className="font-semibold text-rose-600">{formatCurrency(transactionAnalysis.oneTimeSpending)}</span>
+                    <span className="text-text-secondary text-sm">One-Time Spending:</span>
+                    <span className="font-semibold text-spending-red tabular-nums">{formatCurrency(transactionAnalysis.oneTimeSpending)}</span>
                   </div>
                 </div>
               </div>
               <div className="pl-4 overflow-hidden">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-4">Distribution</h3>
+                <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-4">Distribution</h3>
                 <div className="w-full" style={{ minHeight: '250px' }}>
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
@@ -513,11 +524,11 @@ const Reporting: React.FC = () => {
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {recurringVsOneTimeData.map((_entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        {recurringVsOneTimeData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={RECURRING_PIE_COLORS[entry.name] ?? '#8B95B0'} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} />
+                      <Tooltip formatter={(value: number | undefined) => formatCurrency(value ?? 0)} contentStyle={TOOLTIP_STYLE.contentStyle} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

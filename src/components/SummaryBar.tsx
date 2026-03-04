@@ -26,23 +26,25 @@ const SummaryBar: React.FC<SummaryBarProps> = ({ currentDate }) => {
   };
 
   return (
-    <div className="h-auto md:h-auto bg-white border-t border-gray-200 flex flex-col md:flex-row items-center justify-around px-2 md:px-6 py-2 md:py-0 shadow-sm">
+    <div className="h-auto md:h-auto bg-surface-1 border-t border-border-subtle flex flex-col md:flex-row items-center justify-around px-2 md:px-6 py-2 md:py-0">
       <div className="flex-1 w-full md:w-auto mb-1 md:mb-0">
-        <h3 className="text-xs md:text-sm font-semibold text-gray-600 mb-1 md:mb-2 uppercase tracking-wide">
+        <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1 md:mb-2">
           Weekly Summary ({format(weekRange.start, 'MMM d')} - {format(weekRange.end, 'MMM d')})
         </h3>
         <div className="flex space-x-4 md:space-x-8 flex-wrap">
           <div className="text-xs">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Income: </span>
-            <span className="text-sm md:text-base font-semibold tabular-nums text-emerald-600">{formatCurrency(weekly.income)}</span>
+            <span className="text-text-muted text-xs uppercase tracking-widest font-medium">Income: </span>
+            <span className="text-sm md:text-base font-semibold tabular-nums text-income-green">{formatCurrency(weekly.income)}</span>
           </div>
           <div className="text-xs">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Spending: </span>
-            <span className="text-sm md:text-base font-semibold tabular-nums text-rose-600">{formatCurrency(weekly.spending)}</span>
+            <span className="text-text-muted text-xs uppercase tracking-widest font-medium">Spending: </span>
+            <span className="text-sm md:text-base font-semibold tabular-nums text-spending-red">{formatCurrency(weekly.spending)}</span>
           </div>
           <div className="text-xs">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Net: </span>
-            <span className={`text-sm md:text-base font-semibold tabular-nums ${weekly.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <span className="text-text-muted text-xs uppercase tracking-widest font-medium">Net: </span>
+            <span className={`text-sm md:text-base font-semibold tabular-nums ${
+              weekly.profit > 0 ? 'text-income-green' : weekly.profit < 0 ? 'text-spending-red' : 'text-text-muted'
+            }`}>
               {weekly.profit >= 0 ? '+' : ''}{formatCurrency(weekly.profit)}
             </span>
           </div>
@@ -50,21 +52,23 @@ const SummaryBar: React.FC<SummaryBarProps> = ({ currentDate }) => {
       </div>
       
       <div className="flex-1 w-full md:w-auto mt-1 md:mt-0">
-        <h3 className="text-xs md:text-sm font-semibold text-gray-600 mb-1 md:mb-2 uppercase tracking-wide">
+        <h3 className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1 md:mb-2">
           Monthly Summary ({format(currentDate, 'MMMM yyyy')})
         </h3>
         <div className="flex space-x-4 md:space-x-8 flex-wrap">
           <div className="text-xs">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Income: </span>
-            <span className="text-sm md:text-base font-semibold tabular-nums text-emerald-600">{formatCurrency(monthly.income)}</span>
+            <span className="text-text-muted text-xs uppercase tracking-widest font-medium">Income: </span>
+            <span className="text-sm md:text-base font-semibold tabular-nums text-income-green">{formatCurrency(monthly.income)}</span>
           </div>
           <div className="text-xs">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Spending: </span>
-            <span className="text-sm md:text-base font-semibold tabular-nums text-rose-600">{formatCurrency(monthly.spending)}</span>
+            <span className="text-text-muted text-xs uppercase tracking-widest font-medium">Spending: </span>
+            <span className="text-sm md:text-base font-semibold tabular-nums text-spending-red">{formatCurrency(monthly.spending)}</span>
           </div>
           <div className="text-xs">
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Net: </span>
-            <span className={`text-sm md:text-base font-semibold tabular-nums ${monthly.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <span className="text-text-muted text-xs uppercase tracking-widest font-medium">Net: </span>
+            <span className={`text-sm md:text-base font-semibold tabular-nums ${
+              monthly.profit > 0 ? 'text-income-green' : monthly.profit < 0 ? 'text-spending-red' : 'text-text-muted'
+            }`}>
               {monthly.profit >= 0 ? '+' : ''}{formatCurrency(monthly.profit)}
             </span>
           </div>

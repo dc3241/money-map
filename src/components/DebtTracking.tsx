@@ -173,20 +173,20 @@ const DebtTracking: React.FC = () => {
   const overallProgress = totalPrincipal > 0 ? (totalPaid / totalPrincipal) * 100 : 0;
   
   return (
-    <div className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 via-slate-50/50 to-gray-100 min-h-screen">
+    <div className="flex-1 overflow-y-auto bg-bg-app min-h-screen">
       <div className="max-w-7xl mx-auto p-6 md:p-8">
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-2">
+              <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Debt Tracking
               </h1>
-              <p className="text-gray-600 text-lg">Monitor and manage your debt payments</p>
+              <p className="text-text-muted text-sm">Monitor and manage your debt payments</p>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 flex items-center gap-2"
             >
               <span className="text-xl">+</span>
               <span>Add Debt</span>
@@ -196,21 +196,21 @@ const DebtTracking: React.FC = () => {
           {/* Summary Cards */}
           {debts.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Total Debt</div>
-                <div className="text-3xl font-bold text-red-600">{formatCurrency(totalDebt)}</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Total Debt</div>
+                <div className="text-3xl font-semibold text-spending-red">{formatCurrency(totalDebt)}</div>
               </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Total Paid</div>
-                <div className="text-3xl font-bold text-emerald-600">{formatCurrency(totalPaid)}</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Total Paid</div>
+                <div className="text-3xl font-semibold text-income-green">{formatCurrency(totalPaid)}</div>
               </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Original Total</div>
-                <div className="text-3xl font-bold text-gray-900">{formatCurrency(totalPrincipal)}</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Original Total</div>
+                <div className="text-3xl font-semibold text-text-primary">{formatCurrency(totalPrincipal)}</div>
               </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="text-sm text-gray-600 mb-1">Progress</div>
-                <div className="text-3xl font-bold text-blue-600">{overallProgress.toFixed(1)}%</div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Progress</div>
+                <div className="text-3xl font-semibold text-income-green">{overallProgress.toFixed(1)}%</div>
               </div>
             </div>
           )}
@@ -227,222 +227,167 @@ const DebtTracking: React.FC = () => {
               const isPaidOff = debt.currentBalance <= 0;
               const timeUntilDue = getDaysUntilDue(debt.dueDate);
               const icon = getDebtIcon(debt.type);
-              
-              // Gradient colors based on progress - matching sidebar slate-900 theme
-              const gradientColors = isPaidOff
-                ? 'from-emerald-500 via-emerald-600 to-emerald-700'
-                : progress > 50
-                ? 'from-slate-700 via-slate-800 to-slate-900'
-                : 'from-slate-600 via-slate-700 to-slate-800';
+              const dueBadgeClass = timeUntilDue.urgency === 'high' ? 'bg-spending-red-dim text-spending-red' :
+                timeUntilDue.urgency === 'medium' ? 'bg-amber/10 text-amber' : 'bg-surface-2 text-text-secondary';
               
               return (
                 <div
                   key={debt.id}
-                  className={`group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-100 transform hover:scale-[1.02] ${
-                    isPaidOff ? 'ring-2 ring-emerald-400 ring-opacity-50' : ''
-                  }`}
+                  className="group bg-surface-1 border border-border-subtle rounded-xl hover:border-border-hover transition-all duration-200 overflow-hidden p-6"
                 >
-                  {/* Gradient Header */}
-                  <div className={`bg-gradient-to-r ${gradientColors} p-6 text-white relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
-                    
-                    <div className="relative z-10">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="text-4xl">{icon}</div>
-                          <div>
-                            <h3 className="text-xl font-bold">{debt.name}</h3>
-                            <p className="text-sm text-white/80 mt-0.5">{debtTypeLabels[debt.type]}</p>
-                            {account && (
-                              <p className="text-xs text-white/70 mt-0.5">{account.name}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditDebt(debt)}
-                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
-                            title="Edit debt"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => removeDebt(debt.id)}
-                            className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/20 rounded-lg"
-                            title="Delete debt"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl bg-surface-2 rounded-xl px-2 py-1">{icon}</div>
+                      <div>
+                        <h3 className="text-text-primary font-semibold text-sm">{debt.name}</h3>
+                        <span className="bg-surface-2 text-text-secondary text-xs rounded-lg px-2 py-0.5">
+                          {debtTypeLabels[debt.type]}
+                        </span>
+                        {account && (
+                          <p className="text-text-muted text-xs mt-1">{account.name}</p>
+                        )}
                       </div>
-                      
-                      {/* Circular Progress */}
-                      <div className="flex items-center justify-center my-6">
-                        <div className="relative w-32 h-32">
-                          <svg className="transform -rotate-90 w-32 h-32">
-                            <circle
-                              cx="64"
-                              cy="64"
-                              r="56"
-                              stroke="rgba(255,255,255,0.3)"
-                              strokeWidth="12"
-                              fill="none"
-                            />
-                            <circle
-                              cx="64"
-                              cy="64"
-                              r="56"
-                              stroke="white"
-                              strokeWidth="12"
-                              fill="none"
-                              strokeDasharray={`${2 * Math.PI * 56}`}
-                              strokeDashoffset={`${2 * Math.PI * 56 * (1 - progress / 100)}`}
-                              strokeLinecap="round"
-                              className="transition-all duration-1000 ease-out"
-                            />
-                          </svg>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-3xl font-bold">{Math.round(progress)}%</div>
-                              {isPaidOff && (
-                                <div className="text-xs mt-1 animate-pulse">🎉 Paid Off!</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleEditDebt(debt)}
+                        className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-lg"
+                        title="Edit debt"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => removeDebt(debt.id)}
+                        className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-lg"
+                        title="Delete debt"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
 
-                  {/* Content */}
-                  <div className="p-6">
-                    {/* Amounts */}
-                    <div className="space-y-3 mb-6">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-sm text-gray-600">Current Balance</span>
-                        <span className="text-2xl font-bold text-red-600">
-                          {formatCurrency(debt.currentBalance)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-sm text-gray-600">Original Amount</span>
-                        <span className="text-xl font-semibold text-gray-900">
-                          {formatCurrency(debt.principalAmount)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline pt-2 border-t border-gray-100">
-                        <span className="text-sm text-gray-600">Paid Off</span>
-                        <span className={`text-lg font-semibold ${paidAmount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {formatCurrency(paidAmount)}
-                        </span>
-                      </div>
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="w-full bg-surface-3 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-income-green transition-all duration-500 ease-out"
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      />
                     </div>
-                    
-                    {/* Linear Progress Bar */}
-                    <div className="mb-4">
-                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${gradientColors} transition-all duration-1000 ease-out shadow-sm`}
-                          style={{ width: `${Math.min(progress, 100)}%` }}
-                        />
+                    <div className="text-text-muted text-xs mt-1">{Math.round(progress)}% paid off</div>
+                  </div>
+
+                  {/* Amounts */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-text-muted text-xs">Current Balance</span>
+                      <span className="text-spending-red font-semibold tabular-nums">
+                        {formatCurrency(debt.currentBalance)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-text-muted text-xs">Original Amount</span>
+                      <span className="text-text-secondary text-sm tabular-nums">
+                        {formatCurrency(debt.principalAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline pt-2 border-t border-border-subtle">
+                      <span className="text-text-muted text-xs">Paid Off</span>
+                      <span className="text-income-green font-semibold tabular-nums">
+                        {formatCurrency(paidAmount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Debt Details */}
+                  <div className="space-y-2 mb-4">
+                    {debt.interestRate && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-text-muted">Interest Rate</span>
+                        <span className="text-text-secondary font-medium">{debt.interestRate}% APR</span>
                       </div>
-                    </div>
-
-                    {/* Debt Details */}
-                    <div className="space-y-2 mb-4">
-                      {debt.interestRate && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Interest Rate</span>
-                          <span className="font-semibold text-gray-900">{debt.interestRate}% APR</span>
-                        </div>
-                      )}
-                      {debt.minimumPayment && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Min. Payment</span>
-                          <span className="font-semibold text-gray-900">{formatCurrency(debt.minimumPayment)}</span>
-                        </div>
-                      )}
-                      {debt.dueDate && (
-                        <div className={`px-3 py-2 rounded-lg ${
-                          timeUntilDue.urgency === 'high' ? 'bg-red-50 text-red-700' :
-                          timeUntilDue.urgency === 'medium' ? 'bg-yellow-50 text-yellow-700' :
-                          'bg-blue-50 text-blue-700'
-                        }`}>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium">Due: Day {debt.dueDate}</span>
-                            <span className="font-semibold">{timeUntilDue.text}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Record Payment Button */}
-                    <button
-                      onClick={() => setShowPaymentModal(debt.id)}
-                      disabled={isPaidOff}
-                      className={`w-full px-4 py-3 rounded-xl font-semibold transition-all duration-200 mb-3 ${
-                        isPaidOff
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg transform hover:scale-105'
-                      }`}
-                    >
-                      {isPaidOff ? '✓ Debt Paid Off!' : '+ Record Payment'}
-                    </button>
-
-                    {/* Payment History */}
-                    {payments.length > 0 && (
-                      <div className="border-t border-gray-100 pt-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold text-gray-700">Payment History</span>
-                          <span className="text-xs text-gray-500">{payments.length} payments</span>
-                        </div>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {payments.map((payment) => (
-                            <div key={payment.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2 group hover:bg-gray-100 transition-colors">
-                              <div className="flex items-center gap-2 flex-1">
-                                <span className="text-gray-600">{format(new Date(payment.date), 'MMM d, yyyy')}</span>
-                                {payment.description && (
-                                  <span className="text-gray-500">• {payment.description}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-emerald-600">{formatCurrency(payment.amount)}</span>
-                                <button
-                                  onClick={() => removeDebtPayment(payment.id)}
-                                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all p-1 hover:bg-red-50 rounded"
-                                  title="Delete payment"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
+                    )}
+                    {debt.minimumPayment && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-text-muted">Min. Payment</span>
+                        <span className="text-text-secondary font-medium tabular-nums">{formatCurrency(debt.minimumPayment)}</span>
+                      </div>
+                    )}
+                    {debt.dueDate && (
+                      <div className={`px-3 py-2 rounded-lg ${dueBadgeClass} text-xs`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">Due: Day {debt.dueDate}</span>
+                          <span className="font-semibold">{timeUntilDue.text}</span>
                         </div>
                       </div>
                     )}
                   </div>
+
+                  {/* Record Payment Button */}
+                  <button
+                    onClick={() => setShowPaymentModal(debt.id)}
+                    disabled={isPaidOff}
+                    className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 mb-3 ${
+                      isPaidOff
+                        ? 'bg-surface-2 text-text-muted cursor-not-allowed'
+                        : 'bg-accent text-white hover:opacity-90'
+                    }`}
+                  >
+                    {isPaidOff ? '✓ Debt Paid Off!' : '+ Record Payment'}
+                  </button>
+
+                  {/* Payment History */}
+                  {payments.length > 0 && (
+                    <div className="border-t border-border-subtle pt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-text-muted text-xs font-medium">Payment History</span>
+                        <span className="text-text-muted text-xs">{payments.length} payments</span>
+                      </div>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {payments.map((payment) => (
+                          <div key={payment.id} className="flex justify-between items-center text-xs bg-surface-2 rounded-lg px-3 py-2 border border-border-subtle group hover:border-border-hover transition-colors">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-text-muted">{format(new Date(payment.date), 'MMM d, yyyy')}</span>
+                              {payment.description && (
+                                <span className="text-text-muted truncate">• {payment.description}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-semibold text-income-green tabular-nums">{formatCurrency(payment.amount)}</span>
+                              <button
+                                onClick={() => removeDebtPayment(payment.id)}
+                                className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-spending-red transition-all p-1 rounded"
+                                title="Delete payment"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         ) : (
           <div className="text-center py-20">
-            <div className="max-w-md mx-auto">
+            <div className="max-w-md mx-auto bg-surface-1 border border-dashed border-border-subtle rounded-xl p-12">
               <div className="text-8xl mb-6">💸</div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">Start Tracking Your Debt</h2>
-              <p className="text-gray-600 text-lg mb-8">
+              <h2 className="text-2xl font-semibold text-text-primary mb-3">Start Tracking Your Debt</h2>
+              <p className="text-text-muted text-sm mb-8">
                 Add your debts to monitor payments and track your progress toward becoming debt-free!
               </p>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 text-lg"
+                className="px-8 py-4 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 text-lg"
               >
                 Add Your First Debt
               </button>
@@ -457,34 +402,34 @@ const DebtTracking: React.FC = () => {
             onClick={() => setShowAddModal(false)}
           >
             <div 
-              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto"
+              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-semibold text-text-primary mb-6">
                 Add Debt
               </h2>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Debt Name
                   </label>
                   <input
                     type="text"
                     value={newDebtName}
                     onChange={(e) => setNewDebtName(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., Credit Card, Car Loan..."
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Type
                   </label>
                   <select
                     value={newDebtType}
                     onChange={(e) => setNewDebtType(e.target.value as any)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     {Object.entries(debtTypeLabels).map(([value, label]) => (
                       <option key={value} value={value}>{label}</option>
@@ -492,25 +437,25 @@ const DebtTracking: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Principal Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={newDebtPrincipal}
                       onChange={(e) => setNewDebtPrincipal(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Interest Rate % <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Interest Rate % <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <div className="relative">
                     <input
@@ -519,32 +464,32 @@ const DebtTracking: React.FC = () => {
                       min="0"
                       value={newDebtInterest}
                       onChange={(e) => setNewDebtInterest(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">%</span>
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">%</span>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Minimum Payment <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Minimum Payment <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={newDebtMinPayment}
                       onChange={(e) => setNewDebtMinPayment(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Due Date <span className="text-gray-400 font-normal">(day of month, optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Due Date <span className="text-text-muted font-normal">(day of month, optional)</span>
                   </label>
                   <input
                     type="number"
@@ -552,18 +497,18 @@ const DebtTracking: React.FC = () => {
                     max="31"
                     value={newDebtDueDate}
                     onChange={(e) => setNewDebtDueDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., 15"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Account <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Account <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <select
                     value={newDebtAccount}
                     onChange={(e) => setNewDebtAccount(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     <option value="">No account</option>
                     {accounts.map((account) => (
@@ -576,7 +521,7 @@ const DebtTracking: React.FC = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleAddDebt}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
                   >
                     Add Debt
                   </button>
@@ -590,7 +535,7 @@ const DebtTracking: React.FC = () => {
                       setNewDebtDueDate('');
                       setNewDebtAccount('');
                     }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
                     Cancel
                   </button>
@@ -612,66 +557,66 @@ const DebtTracking: React.FC = () => {
             }}
           >
             <div 
-              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all"
+              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-semibold text-text-primary mb-2">
                 Record Payment
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-text-muted mb-6">
                 {debts.find(d => d.id === showPaymentModal)?.name}
               </p>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Payment Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-xl">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium text-xl">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-full pl-10 pr-4 py-4 text-2xl border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none font-semibold"
+                      className="w-full pl-10 pr-4 py-4 text-2xl bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none font-semibold transition-all"
                       placeholder="0.00"
                       autoFocus
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Payment Date
                   </label>
                   <input
                     type="date"
                     value={paymentDate}
                     onChange={(e) => setPaymentDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Description <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Description <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <input
                     type="text"
                     value={paymentDescription}
                     onChange={(e) => setPaymentDescription(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., Monthly payment"
                   />
                 </div>
                 {accounts.length > 0 && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      From Account <span className="text-gray-400 font-normal">(optional)</span>
+                    <label className="block text-sm text-text-secondary mb-2">
+                      From Account <span className="text-text-muted font-normal">(optional)</span>
                     </label>
                     <select
                       value={paymentAccount}
                       onChange={(e) => setPaymentAccount(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                      className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     >
                       <option value="">No account selected</option>
                       {accounts.map((account) => (
@@ -685,7 +630,7 @@ const DebtTracking: React.FC = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => handleAddPayment(showPaymentModal)}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
                   >
                     Record Payment
                   </button>
@@ -696,7 +641,7 @@ const DebtTracking: React.FC = () => {
                       setPaymentDescription('');
                       setPaymentAccount('');
                     }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
                     Cancel
                   </button>
@@ -724,34 +669,34 @@ const DebtTracking: React.FC = () => {
             }}
           >
             <div 
-              className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto"
+              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+              <h2 className="text-2xl font-semibold text-text-primary mb-6">
                 Edit Debt
               </h2>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Debt Name
                   </label>
                   <input
                     type="text"
                     value={editDebtName}
                     onChange={(e) => setEditDebtName(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., Credit Card, Car Loan..."
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Type
                   </label>
                   <select
                     value={editDebtType}
                     onChange={(e) => setEditDebtType(e.target.value as any)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     {Object.entries(debtTypeLabels).map(([value, label]) => (
                       <option key={value} value={value}>{label}</option>
@@ -759,42 +704,42 @@ const DebtTracking: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Principal Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={editDebtPrincipal}
                       onChange={(e) => setEditDebtPrincipal(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm text-text-secondary mb-2">
                     Current Balance
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={editDebtCurrentBalance}
                       onChange={(e) => setEditDebtCurrentBalance(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Interest Rate % <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Interest Rate % <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <div className="relative">
                     <input
@@ -803,32 +748,32 @@ const DebtTracking: React.FC = () => {
                       min="0"
                       value={editDebtInterest}
                       onChange={(e) => setEditDebtInterest(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">%</span>
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">%</span>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Minimum Payment <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Minimum Payment <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-medium">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={editDebtMinPayment}
                       onChange={(e) => setEditDebtMinPayment(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Due Date <span className="text-gray-400 font-normal">(day of month, optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Due Date <span className="text-text-muted font-normal">(day of month, optional)</span>
                   </label>
                   <input
                     type="number"
@@ -836,18 +781,18 @@ const DebtTracking: React.FC = () => {
                     max="31"
                     value={editDebtDueDate}
                     onChange={(e) => setEditDebtDueDate(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all"
                     placeholder="e.g., 15"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Account <span className="text-gray-400 font-normal">(optional)</span>
+                  <label className="block text-sm text-text-secondary mb-2">
+                    Account <span className="text-text-muted font-normal">(optional)</span>
                   </label>
                   <select
                     value={editDebtAccount}
                     onChange={(e) => setEditDebtAccount(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 transition-all outline-none bg-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     <option value="">No account</option>
                     {accounts.map((account) => (
@@ -860,7 +805,7 @@ const DebtTracking: React.FC = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleSaveEdit}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
                   >
                     Save Changes
                   </button>
@@ -877,7 +822,7 @@ const DebtTracking: React.FC = () => {
                       setEditDebtDueDate('');
                       setEditDebtAccount('');
                     }}
-                    className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                    className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
                     Cancel
                   </button>

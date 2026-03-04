@@ -124,15 +124,11 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
     }
   };
 
-  const borderColor = type === 'expense' ? 'border-red-300' : 'border-green-300';
-  const bgColor = type === 'expense' ? 'bg-red-50' : 'bg-green-50';
-  const buttonColor = type === 'expense' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
-
   return (
-    <form onSubmit={handleSubmit} className={`p-4 ${bgColor} rounded-lg border-2 ${borderColor} space-y-3`}>
+    <form onSubmit={handleSubmit} className="p-4 bg-surface-2 rounded-xl border border-border-subtle space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Amount</label>
           <input
             type="number"
             step="0.01"
@@ -140,17 +136,17 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-0"
             required
             autoFocus
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Category</label>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-secondary focus:outline-none focus:border-accent"
           >
             <option value="">Select category</option>
             {categories.map((cat) => (
@@ -163,24 +159,24 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <label className="block text-sm font-medium text-text-secondary mb-1">Description</label>
         <input
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="e.g., Netflix, Rent, Salary"
-          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+          className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-0"
           required
         />
       </div>
 
       {accounts.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Account (optional)</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Account (optional)</label>
           <select
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
-            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-secondary focus:outline-none focus:border-accent"
           >
             <option value="">No account selected</option>
             {accounts.map((account) => (
@@ -194,7 +190,7 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Frequency</label>
           <select
             value={recurrenceType}
             onChange={(e) => {
@@ -217,7 +213,7 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
                 setDayType(undefined);
               }
             }}
-            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-secondary focus:outline-none focus:border-accent"
           >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
@@ -232,11 +228,11 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
         {/* Always show day selector when frequency requires it */}
         {(recurrenceType === 'weekly' || recurrenceType === 'biweekly') && dayType === 'dayOfWeek' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Day of Week</label>
             <select
               value={dayValue}
               onChange={(e) => setDayValue(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+              className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-secondary focus:outline-none focus:border-accent"
             >
               {weekDays.map((day, index) => (
                 <option key={index} value={index}>
@@ -249,14 +245,14 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
 
         {(recurrenceType === 'monthly' || recurrenceType === 'quarterly' || recurrenceType === 'semiannual') && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Day of Month</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Day of Month</label>
             <select
               value={dayValue === -1 ? 'last' : dayValue}
               onChange={(e) => {
                 const val = e.target.value;
                 setDayValue(val === 'last' ? -1 : parseInt(val));
               }}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+              className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-secondary focus:outline-none focus:border-accent"
             >
               {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                 <option key={day} value={day}>
@@ -271,21 +267,21 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Start Date (optional)</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">Start Date (optional)</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent focus:ring-0"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">End Date (optional)</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">End Date (optional)</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className="w-full px-3 py-2 bg-surface-1 border border-border-subtle rounded-xl text-text-primary focus:outline-none focus:border-accent focus:ring-0"
           />
         </div>
       </div>
@@ -296,9 +292,9 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
           id="isActive"
           checked={isActive}
           onChange={(e) => setIsActive(e.target.checked)}
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          className="w-4 h-4 text-accent border-border-subtle rounded focus:ring-0 focus:ring-offset-0"
         />
-        <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+        <label htmlFor="isActive" className="text-sm font-medium text-text-secondary">
           Active (uncheck to pause)
         </label>
       </div>
@@ -306,14 +302,14 @@ const RecurringItemForm: React.FC<RecurringItemFormProps> = ({ type, initialData
       <div className="flex gap-2 pt-2">
         <button
           type="submit"
-          className={`flex-1 px-4 py-2 ${buttonColor} text-white rounded-lg font-semibold transition-colors`}
+          className="flex-1 px-4 py-2 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
         >
           {initialData ? 'Update' : 'Add'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-semibold transition-colors"
+          className="px-4 py-2 bg-surface-2 border border-border-subtle text-text-secondary hover:border-border-hover hover:text-text-primary rounded-lg font-medium transition-all duration-200"
         >
           Cancel
         </button>
@@ -343,39 +339,35 @@ const RecurringItemCard: React.FC<RecurringItemCardProps> = ({ item, type, onEdi
     ? getNextOccurrence(item.pattern, new Date(), item.startDate, item.endDate)
     : getNextOccurrence(item.pattern, new Date(), undefined, item.endDate);
 
-  const bgColor = type === 'expense' ? 'bg-red-50' : 'bg-green-50';
-  const borderColor = type === 'expense' ? 'border-red-200' : 'border-green-200';
-  const buttonColor = type === 'expense' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600';
-
   const categoryIcon = item.category ? CATEGORY_ICONS[item.category] || '📌' : '📌';
   const account = item.accountId ? accounts.find(a => a.id === item.accountId) : null;
 
   return (
-    <div className={`${bgColor} rounded-lg p-4 border-2 ${borderColor} hover:shadow-md transition-shadow`}>
+    <div className="bg-surface-1 border border-border-subtle rounded-xl p-4 hover:border-border-hover transition-all duration-200">
       <div className="flex justify-between items-start mb-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">{categoryIcon}</span>
-            <span className="font-bold text-lg text-gray-800">{formatCurrency(item.amount)}</span>
+            <span className="text-xl bg-surface-2 rounded-xl px-1.5 py-0.5">{categoryIcon}</span>
+            <span className={`font-semibold text-sm tabular-nums ${type === 'expense' ? 'text-spending-red' : 'text-income-green'}`}>{formatCurrency(item.amount)}</span>
             {!item.isActive && (
-              <span className="px-2 py-0.5 bg-gray-400 text-white text-xs font-semibold rounded">Paused</span>
+              <span className="px-2 py-0.5 bg-surface-2 text-text-secondary text-xs font-medium rounded">Paused</span>
             )}
           </div>
-          <div className="text-sm font-medium text-gray-700 mb-1">{item.description}</div>
+          <div className="text-text-primary font-semibold text-sm mb-1">{item.description}</div>
           {item.category && (
-            <div className="text-xs text-gray-500 mb-1">Category: {item.category}</div>
+            <div className="text-text-muted text-xs mb-1">Category: {item.category}</div>
           )}
           {account && (
-            <div className="text-xs text-gray-500 mb-1">Account: {account.name}</div>
+            <div className="text-text-muted text-xs mb-1">Account: {account.name}</div>
           )}
-          <div className="text-xs text-gray-500 mb-1">{formatRecurrencePattern(item.pattern)}</div>
+          <div className="text-text-muted text-xs mb-1">{formatRecurrencePattern(item.pattern)}</div>
           {nextOccurrence && (
-            <div className="text-xs font-semibold text-blue-600">
+            <div className="text-accent text-xs font-medium">
               Next: {format(nextOccurrence, 'MMM d, yyyy')}
             </div>
           )}
           {item.endDate && (
-            <div className="text-xs text-gray-500">
+            <div className="text-text-muted text-xs">
               Ends: {format(new Date(item.endDate), 'MMM d, yyyy')}
             </div>
           )}
@@ -383,13 +375,13 @@ const RecurringItemCard: React.FC<RecurringItemCardProps> = ({ item, type, onEdi
         <div className="flex gap-2 ml-2">
           <button
             onClick={onEdit}
-            className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-semibold transition-colors"
+            className="px-3 py-1 bg-surface-2 border border-border-subtle text-text-secondary hover:border-border-hover hover:text-text-primary rounded-lg transition-all duration-200 text-sm font-medium"
           >
             Edit
           </button>
           <button
             onClick={onDelete}
-            className={`px-3 py-1 ${buttonColor} text-white rounded text-sm font-semibold transition-colors`}
+            className="px-3 py-1 bg-spending-red-dim border border-spending-red text-spending-red hover:bg-spending-red hover:text-white rounded-lg transition-all duration-200 text-sm font-medium"
           >
             Remove
           </button>
@@ -483,22 +475,22 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({ expenses, income }) => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
-        <div className="text-sm text-gray-600 mb-1">Monthly Expenses</div>
-        <div className="text-2xl font-bold text-red-700">{formatCurrency(monthlyExpenses)}</div>
-        <div className="text-xs text-gray-500 mt-1">{expenses.filter(e => e.isActive).length} active items</div>
+      <div className="bg-surface-1 border border-border-subtle rounded-xl p-4 hover:border-border-hover transition-all duration-200">
+        <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Monthly Expenses</div>
+        <div className="text-2xl font-semibold text-spending-red">{formatCurrency(monthlyExpenses)}</div>
+        <div className="text-text-muted text-xs mt-1">{expenses.filter(e => e.isActive).length} active items</div>
       </div>
-      <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
-        <div className="text-sm text-gray-600 mb-1">Monthly Income</div>
-        <div className="text-2xl font-bold text-green-700">{formatCurrency(monthlyIncome)}</div>
-        <div className="text-xs text-gray-500 mt-1">{income.filter(i => i.isActive).length} active items</div>
+      <div className="bg-surface-1 border border-border-subtle rounded-xl p-4 hover:border-border-hover transition-all duration-200">
+        <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Monthly Income</div>
+        <div className="text-2xl font-semibold text-income-green">{formatCurrency(monthlyIncome)}</div>
+        <div className="text-text-muted text-xs mt-1">{income.filter(i => i.isActive).length} active items</div>
       </div>
-      <div className={`border-2 rounded-xl p-4 ${net >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-        <div className="text-sm text-gray-600 mb-1">Net Monthly</div>
-        <div className={`text-2xl font-bold ${net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+      <div className={`bg-surface-1 border border-border-subtle rounded-xl p-4 hover:border-border-hover transition-all duration-200`}>
+        <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Net Monthly</div>
+        <div className={`text-2xl font-semibold ${net > 0 ? 'text-income-green' : net < 0 ? 'text-spending-red' : 'text-text-muted'}`}>
           {formatCurrency(net)}
         </div>
-        <div className="text-xs text-gray-500 mt-1">Income - Expenses</div>
+        <div className="text-text-muted text-xs mt-1">Income - Expenses</div>
       </div>
     </div>
   );
@@ -514,23 +506,23 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({ itemName, onC
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onCancel}>
       <div
-        className="bg-white rounded-xl p-6 shadow-2xl max-w-md w-full mx-4"
+        className="bg-surface-1 border border-border-subtle rounded-xl p-6 max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Confirm Delete</h3>
-        <p className="text-gray-600 mb-6">
-          Are you sure you want to delete <strong>{itemName}</strong>? This action cannot be undone.
+        <h3 className="text-xl font-semibold text-text-primary mb-4">Confirm Delete</h3>
+        <p className="text-text-secondary mb-6">
+          Are you sure you want to delete <strong className="text-text-primary">{itemName}</strong>? This action cannot be undone.
         </p>
         <div className="flex gap-3">
           <button
             onClick={onConfirm}
-            className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors"
+            className="flex-1 px-4 py-2 bg-spending-red-dim border border-spending-red text-spending-red hover:bg-spending-red hover:text-white rounded-lg font-medium transition-all duration-200"
           >
             Delete
           </button>
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-semibold transition-colors"
+            className="flex-1 px-4 py-2 bg-surface-2 border border-border-subtle text-text-secondary hover:border-border-hover hover:text-text-primary rounded-lg font-medium transition-all duration-200"
           >
             Cancel
           </button>
@@ -677,22 +669,23 @@ const Recurring: React.FC = () => {
   }, [recurringIncome, incomeFilter, incomeCategoryFilter, incomeSort]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 via-white to-slate-50">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Recurring Expenses & Income</h1>
+    <div className="flex-1 overflow-y-auto p-6 bg-bg-app">
+      <h1 className="text-3xl font-semibold text-text-primary mb-2">Recurring Expenses & Income</h1>
+      <p className="text-text-muted text-sm mb-6">Manage recurring bills, income, and schedules.</p>
       
       <SummaryStats expenses={recurringExpenses} income={recurringIncome} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recurring Expenses Section */}
-        <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-red-200">
+        <div className="bg-surface-1 rounded-xl p-6 border border-border-subtle">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-red-700">Recurring Expenses</h2>
+            <h2 className="text-2xl font-semibold text-text-primary">Recurring Expenses</h2>
             <button
               onClick={() => {
                 setEditingExpense(null);
                 setShowExpenseForm(!showExpenseForm);
               }}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors"
+              className="px-4 py-2 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
             >
               {showExpenseForm && !editingExpense ? 'Cancel' : '+ Add Expense'}
             </button>
@@ -705,13 +698,13 @@ const Recurring: React.FC = () => {
               placeholder="Search expenses..."
               value={expenseFilter}
               onChange={(e) => setExpenseFilter(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-400 text-sm"
+              className="w-full px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl focus:border-accent focus:ring-0 focus:outline-none text-text-primary placeholder:text-text-muted text-sm"
             />
             <div className="flex gap-2">
               <select
                 value={expenseCategoryFilter}
                 onChange={(e) => setExpenseCategoryFilter(e.target.value)}
-                className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-400 text-sm"
+                className="flex-1 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-secondary text-sm focus:outline-none focus:border-accent"
               >
                 <option value="">All Categories</option>
                 {EXPENSE_CATEGORIES.map((cat) => (
@@ -721,7 +714,7 @@ const Recurring: React.FC = () => {
               <select
                 value={expenseSort}
                 onChange={(e) => setExpenseSort(e.target.value as SortOption)}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-400 text-sm"
+                className="px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-secondary text-sm focus:outline-none focus:border-accent"
               >
                 <option value="nextOccurrence">Next Occurrence</option>
                 <option value="amount">Amount</option>
@@ -756,16 +749,16 @@ const Recurring: React.FC = () => {
               />
             ))}
             {filteredAndSortedExpenses.length === 0 && (
-              <div className="text-center text-gray-500 py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <div className="text-center text-text-muted py-8 bg-surface-2 rounded-xl border border-dashed border-border-subtle">
                 <div className="text-4xl mb-2">📋</div>
-                <div className="font-medium">No recurring expenses found</div>
+                <div className="font-medium text-text-primary">No recurring expenses found</div>
                 <div className="text-sm mt-1">Add your first recurring expense to get started</div>
               </div>
             )}
             {filteredAndSortedExpenses.length > 3 && (
               <button
                 onClick={() => setExpandedExpenses(!expandedExpenses)}
-                className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2 px-4 bg-surface-2 text-text-secondary rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:border-border-hover border border-transparent hover:border-border-subtle"
               >
                 {expandedExpenses ? (
                   <>
@@ -788,15 +781,15 @@ const Recurring: React.FC = () => {
         </div>
 
         {/* Recurring Income Section */}
-        <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-green-200">
+        <div className="bg-surface-1 rounded-xl p-6 border border-border-subtle">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-green-700">Recurring Income</h2>
+            <h2 className="text-2xl font-semibold text-text-primary">Recurring Income</h2>
             <button
               onClick={() => {
                 setEditingIncome(null);
                 setShowIncomeForm(!showIncomeForm);
               }}
-              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
+              className="px-4 py-2 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
             >
               {showIncomeForm && !editingIncome ? 'Cancel' : '+ Add Income'}
             </button>
@@ -809,13 +802,13 @@ const Recurring: React.FC = () => {
               placeholder="Search income..."
               value={incomeFilter}
               onChange={(e) => setIncomeFilter(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-400 text-sm"
+              className="w-full px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl focus:border-accent focus:ring-0 focus:outline-none text-text-primary placeholder:text-text-muted text-sm"
             />
             <div className="flex gap-2">
               <select
                 value={incomeCategoryFilter}
                 onChange={(e) => setIncomeCategoryFilter(e.target.value)}
-                className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-400 text-sm"
+                className="flex-1 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-secondary text-sm focus:outline-none focus:border-accent"
               >
                 <option value="">All Categories</option>
                 {INCOME_CATEGORIES.map((cat) => (
@@ -825,7 +818,7 @@ const Recurring: React.FC = () => {
               <select
                 value={incomeSort}
                 onChange={(e) => setIncomeSort(e.target.value as SortOption)}
-                className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-400 text-sm"
+                className="px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-secondary text-sm focus:outline-none focus:border-accent"
               >
                 <option value="nextOccurrence">Next Occurrence</option>
                 <option value="amount">Amount</option>
@@ -860,16 +853,16 @@ const Recurring: React.FC = () => {
               />
             ))}
             {filteredAndSortedIncome.length === 0 && (
-              <div className="text-center text-gray-500 py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <div className="text-center text-text-muted py-8 bg-surface-2 rounded-xl border border-dashed border-border-subtle">
                 <div className="text-4xl mb-2">💰</div>
-                <div className="font-medium">No recurring income found</div>
+                <div className="font-medium text-text-primary">No recurring income found</div>
                 <div className="text-sm mt-1">Add your first recurring income to get started</div>
               </div>
             )}
             {filteredAndSortedIncome.length > 3 && (
               <button
                 onClick={() => setExpandedIncome(!expandedIncome)}
-                className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2 px-4 bg-surface-2 text-text-secondary rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:border-border-hover border border-transparent hover:border-border-subtle"
               >
                 {expandedIncome ? (
                   <>

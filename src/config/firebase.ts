@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -22,4 +23,8 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
+const functions = getFunctions(app, "us-central1");
+export const createLinkToken = httpsCallable<unknown, { linkToken: string }>(functions, "createLinkToken");
+export const exchangePublicToken = httpsCallable<{ publicToken: string }, { success: boolean }>(functions, "exchangePublicToken");
+export const syncTransactions = httpsCallable<unknown, { success: boolean; added?: number; modified?: number }>(functions, "syncTransactions");
 export default app;

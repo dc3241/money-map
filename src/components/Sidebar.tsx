@@ -71,27 +71,29 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
 
       {/* Mobile Menu Drawer */}
       <div className={`
-        md:hidden fixed top-0 left-0 h-full w-64 bg-slate-900 text-slate-100 z-40 transform transition-transform duration-300 ease-in-out
+        md:hidden fixed top-0 left-0 h-full w-64 bg-surface-1 border-r border-border-subtle z-40 transform transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full py-4 px-4">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <svg width="40" height="40" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10">
-                <rect width="120" height="120" fill="#334155" rx="20"/>
-                <g transform="translate(30, 30)">
-                  <rect x="0" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
-                  <rect x="21" y="0" width="18" height="18" fill="#10B981" rx="2"/>
-                  <rect x="42" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
-                  <rect x="0" y="21" width="18" height="18" fill="#10B981" rx="2"/>
-                  <rect x="21" y="21" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
-                  <rect x="42" y="21" width="18" height="18" fill="#10B981" rx="2"/>
-                  <rect x="0" y="42" width="18" height="18" fill="#10B981" rx="2"/>
-                  <rect x="21" y="42" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
-                  <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2"/>
-                </g>
-              </svg>
-              <span className="text-xl font-bold text-slate-100">Money Maps</span>
+              <div className="bg-accent rounded-xl p-1.5 flex items-center justify-center">
+                <svg width="40" height="40" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10">
+                  <rect width="120" height="120" fill="#334155" rx="20"/>
+                  <g transform="translate(30, 30)">
+                    <rect x="0" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
+                    <rect x="21" y="0" width="18" height="18" fill="#10B981" rx="2"/>
+                    <rect x="42" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
+                    <rect x="0" y="21" width="18" height="18" fill="#10B981" rx="2"/>
+                    <rect x="21" y="21" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
+                    <rect x="42" y="21" width="18" height="18" fill="#10B981" rx="2"/>
+                    <rect x="0" y="42" width="18" height="18" fill="#10B981" rx="2"/>
+                    <rect x="21" y="42" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
+                    <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2"/>
+                  </g>
+                </svg>
+              </div>
+              <span className="text-xl font-semibold text-text-primary">Money Maps</span>
             </div>
           </div>
           
@@ -100,10 +102,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
               <button
                 key={item.id}
                 onClick={() => handleViewChange(item.id as typeof currentView)}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                className={`relative flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   currentView === item.id
-                    ? 'bg-emerald-500/20 text-emerald-400'
-                    : 'text-slate-300 hover:bg-slate-800'
+                    ? 'bg-accent-glow text-accent before:content-[""] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-accent before:rounded-l-xl'
+                    : 'text-text-muted hover:bg-surface-3 hover:text-text-secondary'
                 }`}
               >
                 {item.icon}
@@ -112,13 +114,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
             ))}
           </nav>
           
-          <div className="mt-auto space-y-2 border-t border-slate-700 pt-4">
+          <div className="mt-auto space-y-2 border-t border-border-subtle pt-4">
             <button
               onClick={() => handleViewChange('profile')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+              className={`relative w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                 currentView === 'profile'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'text-slate-300 hover:bg-slate-800'
+                  ? 'bg-accent-glow text-accent before:content-[""] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-accent before:rounded-l-xl'
+                  : 'text-text-muted hover:bg-surface-3 hover:text-text-secondary'
               }`}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -128,7 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
             </button>
             <button
               onClick={logout}
-              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 text-slate-300 hover:bg-red-900/20 hover:text-red-400"
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 text-text-muted hover:bg-surface-3 hover:text-text-secondary"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -139,11 +141,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
         </div>
       </div>
 
-      {/* Desktop Sidebar - Unchanged */}
-      <div className="hidden md:flex w-16 bg-slate-900 text-slate-100 h-full flex-col items-center py-4 shadow-lg relative group">
-      <div className="mb-6">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex w-16 bg-surface-1 border-r border-border-subtle h-full flex-col items-center py-4 relative group">
+      <div className="mb-6 bg-accent rounded-xl p-1.5 flex items-center justify-center">
         <svg width="40" height="40" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10">
-          {/* Money Maps Logo - Slate + Emerald */}
           <rect width="120" height="120" fill="#334155" rx="20"/>
           <g transform="translate(30, 30)">
             <rect x="0" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2"/>
@@ -163,30 +164,30 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
           <button
             key={item.id}
             onClick={() => onViewChange(item.id as typeof currentView)}
-            className={`relative px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button ${
+            className={`relative px-3 py-3 rounded-xl transition-all duration-200 flex items-center justify-center group/button ${
               currentView === item.id
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'text-slate-300 hover:bg-slate-800'
+                ? 'bg-accent-glow text-accent before:content-[""] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-accent before:rounded-l-xl'
+                : 'text-text-muted hover:bg-surface-3 hover:text-text-secondary'
             }`}
           >
             {item.icon}
-            <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+            <span className="absolute left-full ml-3 px-3 py-1.5 bg-surface-2 text-text-primary text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg border border-border-subtle">
               {item.label}
-              <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+              <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-surface-2"></span>
             </span>
           </button>
         ))}
       </nav>
       
       {/* Profile and Logout Buttons */}
-      <div className="mt-auto w-full px-2 space-y-3">
+      <div className="mt-auto w-full px-2 space-y-3 border-t border-border-subtle pt-4">
         {/* Profile Button */}
         <button
           onClick={() => onViewChange('profile')}
-          className={`relative w-full px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button ${
+          className={`relative w-full px-3 py-3 rounded-xl transition-all duration-200 flex items-center justify-center group/button ${
             currentView === 'profile'
-              ? 'bg-emerald-500/20 text-emerald-400'
-              : 'text-slate-300 hover:bg-slate-800'
+              ? 'bg-accent-glow text-accent before:content-[""] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-accent before:rounded-l-xl'
+              : 'text-text-muted hover:bg-surface-3 hover:text-text-secondary'
           }`}
         >
           <svg
@@ -204,16 +205,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
             />
           </svg>
           
-          <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+          <span className="absolute left-full ml-3 px-3 py-1.5 bg-surface-2 text-text-primary text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg border border-border-subtle">
             Profile
-            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-surface-2"></span>
           </span>
         </button>
 
         {/* Logout Button */}
         <button
           onClick={logout}
-          className="w-full px-3 py-3 rounded-lg transition-all duration-200 flex items-center justify-center group/button text-slate-300 hover:bg-red-900/20 hover:text-red-400"
+          className="w-full px-3 py-3 rounded-xl transition-all duration-200 flex items-center justify-center group/button text-text-muted hover:bg-surface-3 hover:text-text-secondary"
           title={user?.email || 'Logout'}
         >
           <svg
@@ -232,9 +233,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
           </svg>
           
           {/* Tooltip */}
-          <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-800 text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg">
+          <span className="absolute left-full ml-3 px-3 py-1.5 bg-surface-2 text-text-primary text-sm rounded-lg whitespace-nowrap opacity-0 group-hover/button:opacity-100 pointer-events-none transition-all duration-200 transform translate-x-[-8px] group-hover/button:translate-x-0 z-50 shadow-lg border border-border-subtle">
             Logout
-            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-800"></span>
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-surface-2"></span>
           </span>
         </button>
       </div>
