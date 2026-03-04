@@ -12,7 +12,7 @@ export default function Home() {
     {
       icon: '📅',
       title: 'Visual Calendar',
-      description: 'See your finances at a glance with weekly and monthly calendar views. Track income and expenses day by day.',
+      description: 'See your finances at a glance with a weekly calendar view. Track income and expenses day by day.',
     },
     {
       icon: '🔄',

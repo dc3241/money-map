@@ -1,43 +1,27 @@
 import React, { useState } from 'react';
 import { format, addDays, subDays } from 'date-fns';
-import { getMonthGrid, addMonth, subtractMonth, getWeekGrid, addWeek, subtractWeek } from '../utils/dateUtils';
-import DayBox from './DayBox';
+import { getWeekGrid, addWeek, subtractWeek } from '../utils/dateUtils';
 import WeekDayBox from './WeekDayBox';
 import DayEditModal from './DayEditModal';
 
 interface CalendarProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
-  viewType: 'weekly' | 'monthly';
-  onViewTypeChange: (viewType: 'weekly' | 'monthly') => void;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType, onViewTypeChange }) => {
+const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange }) => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // Track the currently displayed day for mobile single-day view
   const [mobileCurrentDay, setMobileCurrentDay] = useState<Date>(currentDate);
 
-  const monthGrid = getMonthGrid(currentDate);
   const weekGrid = getWeekGrid(currentDate);
-  const currentMonth = currentDate.getMonth();
-  
-  // Calculate number of weeks dynamically for monthly view
-  const numberOfWeeks = Math.ceil(monthGrid.length / 7);
 
   const handlePreviousPeriod = () => {
-    if (viewType === 'weekly') {
-      onDateChange(subtractWeek(currentDate));
-    } else {
-      onDateChange(subtractMonth(currentDate));
-    }
+    onDateChange(subtractWeek(currentDate));
   };
 
   const handleNextPeriod = () => {
-    if (viewType === 'weekly') {
-      onDateChange(addWeek(currentDate));
-    } else {
-      onDateChange(addMonth(currentDate));
-    }
+    onDateChange(addWeek(currentDate));
   };
 
   // Mobile day navigation
@@ -68,22 +52,16 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
   today.setHours(0, 0, 0, 0);
 
   // Get week range for header display
-  const weekRange = viewType === 'weekly' 
-    ? { start: weekGrid[0], end: weekGrid[6] }
-    : null;
+  const weekRange = { start: weekGrid[0], end: weekGrid[6] };
 
   // Sync mobileCurrentDay when currentDate changes from outside (e.g., week navigation)
   React.useEffect(() => {
-    if (viewType === 'weekly') {
-      // Find the day in the current week that matches mobileCurrentDay's date
-      const currentDayDate = format(mobileCurrentDay, 'yyyy-MM-dd');
-      const isInCurrentWeek = weekGrid.some(day => format(day, 'yyyy-MM-dd') === currentDayDate);
-      if (!isInCurrentWeek) {
-        // If the mobile day is not in the current week, reset to first day of week
-        setMobileCurrentDay(weekGrid[0]);
-      }
+    const currentDayDate = format(mobileCurrentDay, 'yyyy-MM-dd');
+    const isInCurrentWeek = weekGrid.some(day => format(day, 'yyyy-MM-dd') === currentDayDate);
+    if (!isInCurrentWeek) {
+      setMobileCurrentDay(weekGrid[0]);
     }
-  }, [currentDate, viewType]);
+  }, [currentDate]);
 
   return (
     <div className="flex flex-col h-full bg-bg-app">
@@ -97,34 +75,8 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
         </button>
         <div className="flex items-center gap-4 flex-1 justify-center md:justify-start min-w-0">
           <h2 className="text-lg font-semibold text-text-primary text-center md:text-left truncate">
-            {viewType === 'weekly' 
-              ? `${format(weekRange!.start, 'MMM d')} - ${format(weekRange!.end, 'MMM d, yyyy')}`
-              : format(currentDate, 'MMMM yyyy')
-            }
+            {format(weekRange.start, 'MMM d')} - {format(weekRange.end, 'MMM d, yyyy')}
           </h2>
-          {/* View Toggle - Hidden on mobile */}
-          <div className="hidden md:flex bg-surface-2 border border-border-subtle rounded-lg p-1">
-            <button
-              onClick={() => onViewTypeChange('weekly')}
-              className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                viewType === 'weekly'
-                  ? 'bg-surface-3 text-text-primary border border-border-hover'
-                  : 'text-text-muted hover:text-text-secondary'
-              }`}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => onViewTypeChange('monthly')}
-              className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${
-                viewType === 'monthly'
-                  ? 'bg-surface-3 text-text-primary border border-border-hover'
-                  : 'text-text-muted hover:text-text-secondary'
-              }`}
-            >
-              Month
-            </button>
-          </div>
         </div>
         <button
           onClick={handleNextPeriod}
@@ -148,8 +100,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
         }
         // #endregion
       }}>
-        {viewType === 'weekly' ? (
-          <>
+        <>
             {/* Mobile: Single Day View */}
             <div className="md:hidden h-full flex flex-col overflow-x-hidden w-full">
               <div className="flex items-center justify-center mb-2 md:mb-4 relative px-12 w-full max-w-full">
@@ -221,43 +172,6 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange, viewType
               ))}
             </div>
           </>
-        ) : (
-          // Monthly View - existing grid layout
-          <div 
-            className="grid grid-cols-7 gap-3 h-full"
-            style={{
-              gridTemplateRows: `auto repeat(${numberOfWeeks}, 1fr)`
-            }}
-          >
-            {/* Week Day Headers */}
-            {weekDays.map((day) => (
-              <div
-                key={day}
-                className="bg-bg-app py-2 px-1 text-center text-xs uppercase tracking-widest font-medium text-text-muted border-b border-border-subtle"
-              >
-                {day}
-              </div>
-            ))}
-
-            {/* Day Boxes */}
-            {monthGrid.map((date) => {
-              const isCurrentMonth = date.getMonth() === currentMonth;
-              const dateOnly = new Date(date);
-              dateOnly.setHours(0, 0, 0, 0);
-              const isToday = dateOnly.getTime() === today.getTime();
-              
-              return (
-                <DayBox
-                  key={date.toISOString()}
-                  date={date}
-                  isCurrentMonth={isCurrentMonth}
-                  isToday={isToday}
-                  onClick={() => handleDayClick(date)}
-                />
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Edit Modal */}

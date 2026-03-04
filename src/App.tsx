@@ -34,7 +34,6 @@ const LoadingSpinner = () => (
 function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState<'dashboard' | 'recurring' | 'reporting' | 'accounts' | 'budgets' | 'goals' | 'debt' | 'profile'>('dashboard');
-  const [calendarViewType, setCalendarViewType] = useState<'weekly' | 'monthly'>('weekly'); // Default to weekly
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const populateRecurringForMonth = useBudgetStore((state) => state.populateRecurringForMonth);
   const cleanupPastRecurringTransactions = useBudgetStore((state) => state.cleanupPastRecurringTransactions);
@@ -110,19 +109,6 @@ function Dashboard() {
     }
   }, [currentDate, currentView, populateRecurringForMonth]);
 
-  // Force weekly view on mobile when component mounts or screen size changes
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768 && calendarViewType === 'monthly') {
-        setCalendarViewType('weekly');
-      }
-    };
-    
-    handleResize(); // Check on mount
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [calendarViewType]);
-
   const handleViewChange = (view: typeof currentView) => {
     setCurrentView(view);
     // Close mobile menu when a view is selected
@@ -161,8 +147,6 @@ function Dashboard() {
               <Calendar 
                 currentDate={currentDate} 
                 onDateChange={setCurrentDate}
-                viewType={calendarViewType}
-                onViewTypeChange={setCalendarViewType}
               />
             </div>
 
