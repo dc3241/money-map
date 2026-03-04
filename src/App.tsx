@@ -26,8 +26,8 @@ const AdminPortal = lazy(() => import('./components/AdminPortal'));
 
 // Loading component
 const LoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center">
-    <div className="text-gray-600">Loading...</div>
+  <div className="min-h-screen flex items-center justify-center bg-bg-app">
+    <div className="text-text-muted">Loading...</div>
   </div>
 );
 
@@ -132,7 +132,7 @@ function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 relative overflow-x-hidden">
+    <div className="flex h-screen bg-bg-app relative overflow-x-hidden">
       {/* Left Sidebar */}
       <Sidebar 
         currentView={currentView} 
