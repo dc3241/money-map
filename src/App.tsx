@@ -2,7 +2,6 @@ import { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import BottomNavigation from './components/BottomNavigation';
-import SummaryBar from './components/SummaryBar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { useBudgetStore, rehydrateBudgetCache } from './store/useBudgetStore';
@@ -11,7 +10,7 @@ import { useWalkthroughStore } from './store/useWalkthroughStore';
 import { useWalkthroughAutoComplete } from './hooks/useWalkthroughAutoComplete';
 
 // Lazy load components that aren't immediately needed
-const Calendar = lazy(() => import('./components/Calendar'));
+const DashboardOverview = lazy(() => import('./components/dashboard/DashboardOverview'));
 const Recurring = lazy(() => import('./components/Recurring'));
 const Reporting = lazy(() => import('./components/Reporting'));
 const Accounts = lazy(() => import('./components/Accounts'));
@@ -130,30 +129,12 @@ function Dashboard() {
       {/* Main Content Area */}
       <Suspense fallback={<LoadingSpinner />}>
         {currentView === 'dashboard' ? (
-          <div className="flex-1 flex flex-col h-full md:ml-0 pb-16 md:pb-0" ref={(el) => {
-            // #region agent log
-            if (el) {
-              setTimeout(() => {
-                const rect = el.getBoundingClientRect();
-                const logData = {location:'App.tsx:133',message:'Dashboard container dimensions',data:{dashboardWidth:rect.width,dashboardLeft:rect.left,dashboardRight:rect.right,viewportWidth:window.innerWidth},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'};
-                console.log('DEBUG:', logData);
-                fetch('http://127.0.0.1:7242/ingest/9a5fadb7-ed49-408b-9ad5-e9f09e1cac2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch((e) => console.error('Log fetch failed:', e));
-              }, 100);
-            }
-            // #endregion
-          }}>
-            {/* Calendar Area (84% height on mobile, 90% on desktop) */}
-            <div className="flex-[84] md:flex-[9] min-h-0">
-              <Calendar 
-                currentDate={currentDate} 
-                onDateChange={setCurrentDate}
-              />
-            </div>
-
-            {/* Summary Bar (16% height on mobile, 10% on desktop) */}
-            <div className="flex-[16] md:flex-[1] min-h-0 mb-16 md:mb-0">
-              <SummaryBar currentDate={currentDate} />
-            </div>
+          <div className="flex-1 flex flex-col h-full md:ml-0 pb-16 md:pb-0 min-w-0">
+            <DashboardOverview
+              currentDate={currentDate}
+              onDateChange={setCurrentDate}
+              onViewChange={handleViewChange}
+            />
           </div>
         ) : currentView === 'recurring' ? (
           <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
