@@ -51,11 +51,56 @@ function getPlaidClient(clientId: string, secret: string): PlaidApi {
 }
 
 /**
+ * Builds a safe log payload from a Plaid/Axios error.
+ * Raw Axios errors include PLAID-SECRET in request config; do not log them.
+ * @param {unknown} err Caught error (often from Plaid SDK / Axios).
+ * @return {Record<string, unknown>} Fields safe to send to logger.
+ */
+function plaidAxiosFailureFields(err: unknown): Record<string, unknown> {
+  if (err && typeof err === "object" && "response" in err) {
+    const ax = err as {
+      response?: {status?: number; data?: unknown};
+      message?: string;
+    };
+    return {
+      status: ax.response?.status,
+      plaidBody: ax.response?.data,
+      axiosMessage: ax.message,
+    };
+  }
+  return {
+    detail: err instanceof Error ? err.message : String(err),
+  };
+}
+
+/**
+ * Prefer Plaid's error_message / error_code for client-facing messages.
+ * @param {unknown} err Caught error.
+ * @param {string} fallback Message when no Plaid body is present.
+ * @return {string} User-safe description.
+ */
+function messageFromPlaidAxiosError(err: unknown, fallback: string): string {
+  if (!err || typeof err !== "object" || !("response" in err)) {
+    return fallback;
+  }
+  const data = (err as {response?: {data?: unknown}}).response?.data;
+  if (!data || typeof data !== "object") return fallback;
+  const body = data as {error_message?: string; error_code?: string};
+  if (typeof body.error_message === "string" && body.error_message.length > 0) {
+    return body.error_message;
+  }
+  if (typeof body.error_code === "string" && body.error_code.length > 0) {
+    return body.error_code;
+  }
+  return fallback;
+}
+
+/**
  * Creates a Plaid link token for the authenticated user.
  * Callable; requires auth. Returns { linkToken } for initializing Plaid Link.
  */
 export const createLinkToken = onCall(
-  {secrets: plaidSecrets},
+  {secrets: plaidSecrets, invoker: "public", cors: true},
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -72,18 +117,21 @@ export const createLinkToken = onCall(
       country_codes: [CountryCode.Us],
       user: {client_user_id: uid},
       products: [Products.Transactions],
+      additional_consented_products: [Products.Liabilities],
     };
 
     try {
       const response = await plaid.linkTokenCreate(linkTokenRequest);
       return {linkToken: response.data.link_token};
     } catch (err: unknown) {
-      logger.error("Plaid linkTokenCreate failed", err);
-      const message =
-        err && typeof err === "object" && "response" in err ?
-          String((err as { response?: { data?: unknown } }).response?.data) :
-          "Failed to create link token.";
-      throw new HttpsError("internal", message);
+      logger.error(
+        "Plaid linkTokenCreate failed",
+        plaidAxiosFailureFields(err)
+      );
+      throw new HttpsError(
+        "internal",
+        messageFromPlaidAxiosError(err, "Failed to create link token.")
+      );
     }
   }
 );
@@ -93,7 +141,7 @@ export const createLinkToken = onCall(
  * and stores it in Firestore at users/{uid}/plaidData.
  */
 export const exchangePublicToken = onCall(
-  {secrets: plaidSecrets},
+  {secrets: plaidSecrets, invoker: "public", cors: true},
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -131,14 +179,39 @@ export const exchangePublicToken = onCall(
         {merge: true}
       );
 
+      // Fetch and store accounts (Auth product) for net worth and display
+      const accountsResponse = await plaid.accountsGet({
+        access_token: accessToken,
+      });
+      const accountsRef = db
+        .collection("users")
+        .doc(uid)
+        .collection("accounts");
+      for (const acct of accountsResponse.data.accounts) {
+        const balances = acct.balances;
+        await accountsRef.doc(acct.account_id).set({
+          account_id: acct.account_id,
+          item_id: itemId,
+          name: acct.name ?? "Account",
+          type: acct.type ?? "other",
+          subtype: acct.subtype ?? null,
+          mask: acct.mask ?? null,
+          current_balance: balances?.current ?? null,
+          available_balance: balances?.available ?? null,
+          updated_at: new Date(),
+        }, {merge: true});
+      }
+
       return {success: true};
     } catch (err: unknown) {
-      logger.error("Plaid itemPublicTokenExchange failed", err);
-      const message =
-        err && typeof err === "object" && "response" in err ?
-          String((err as { response?: { data?: unknown } }).response?.data) :
-          "Failed to exchange public token.";
-      throw new HttpsError("internal", message);
+      logger.error(
+        "Plaid itemPublicTokenExchange failed",
+        plaidAxiosFailureFields(err)
+      );
+      throw new HttpsError(
+        "internal",
+        messageFromPlaidAxiosError(err, "Failed to exchange public token.")
+      );
     }
   }
 );
@@ -149,7 +222,7 @@ export const exchangePublicToken = onCall(
  * Uses transactions/sync; persists cursor in plaidData.
  */
 export const syncTransactions = onCall(
-  {secrets: plaidSecrets},
+  {secrets: plaidSecrets, invoker: "public", cors: true},
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -244,12 +317,193 @@ export const syncTransactions = onCall(
         modified: totalModified,
       };
     } catch (err: unknown) {
-      logger.error("Plaid transactionsSync failed", err);
-      const message =
-        err && typeof err === "object" && "response" in err ?
-          String((err as { response?: { data?: unknown } }).response?.data) :
-          "Failed to sync transactions.";
-      throw new HttpsError("internal", message);
+      logger.error(
+        "Plaid transactionsSync failed",
+        plaidAxiosFailureFields(err)
+      );
+      throw new HttpsError(
+        "internal",
+        messageFromPlaidAxiosError(err, "Failed to sync transactions.")
+      );
     }
+  }
+);
+
+/**
+ * Refreshes account balances from Plaid and updates users/{uid}/accounts.
+ */
+export const syncBalances = onCall(
+  {secrets: plaidSecrets, invoker: "public", cors: true},
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const db = getFirestore();
+    const plaidDoc = await db.doc(`users/${uid}/plaidData/item`).get();
+    const plaidData = plaidDoc.data();
+    const accessToken = plaidData?.access_token as string | undefined;
+
+    if (!accessToken) {
+      throw new HttpsError(
+        "failed-precondition",
+        "No Plaid access token. Link a bank account first."
+      );
+    }
+
+    const clientId = plaidClientId.value();
+    const secret = plaidSecret.value();
+    const plaid = getPlaidClient(clientId, secret);
+
+    try {
+      const accountsResponse = await plaid.accountsGet({
+        access_token: accessToken,
+      });
+      const accountsRef = db
+        .collection("users")
+        .doc(uid)
+        .collection("accounts");
+      for (const acct of accountsResponse.data.accounts) {
+        const balances = acct.balances;
+        await accountsRef.doc(acct.account_id).set({
+          account_id: acct.account_id,
+          item_id: plaidData?.item_id ?? null,
+          name: acct.name ?? "Account",
+          type: acct.type ?? "other",
+          subtype: acct.subtype ?? null,
+          mask: acct.mask ?? null,
+          current_balance: balances?.current ?? null,
+          available_balance: balances?.available ?? null,
+          updated_at: new Date(),
+        }, {merge: true});
+      }
+      return {success: true};
+    } catch (err: unknown) {
+      logger.error("Plaid accountsGet failed", plaidAxiosFailureFields(err));
+      throw new HttpsError(
+        "internal",
+        messageFromPlaidAxiosError(err, "Failed to sync balances.")
+      );
+    }
+  }
+);
+
+/**
+ * Syncs Plaid recurring transaction streams and liabilities snapshot.
+ * Writes to users/{uid}/plaidData/recurring and
+ * users/{uid}/plaidData/liabilities.
+ * Call after transactions sync; failures are logged but partial success is
+ * allowed.
+ */
+export const syncPlaidInsights = onCall(
+  {secrets: plaidSecrets, invoker: "public", cors: true},
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+
+    const db = getFirestore();
+    const plaidDoc = await db.doc(`users/${uid}/plaidData/item`).get();
+    const plaidData = plaidDoc.data();
+    const accessToken = plaidData?.access_token as string | undefined;
+
+    if (!accessToken) {
+      throw new HttpsError(
+        "failed-precondition",
+        "No Plaid access token. Link a bank account first."
+      );
+    }
+
+    const clientId = plaidClientId.value();
+    const secret = plaidSecret.value();
+    const plaid = getPlaidClient(clientId, secret);
+
+    const recurringRef = db.doc(`users/${uid}/plaidData/recurring`);
+    const liabilitiesRef = db.doc(`users/${uid}/plaidData/liabilities`);
+
+    let recurringOk = false;
+    let liabilitiesOk = false;
+
+    try {
+      const recResponse = await plaid.transactionsRecurringGet({
+        access_token: accessToken,
+      });
+      const recData = recResponse.data;
+      await recurringRef.set(
+        {
+          inflow_streams: recData.inflow_streams ?? [],
+          outflow_streams: recData.outflow_streams ?? [],
+          updated_datetime: recData.updated_datetime ?? null,
+          personal_finance_category_version:
+            recData.personal_finance_category_version ?? null,
+          synced_at: new Date(),
+          error: null,
+        },
+        {merge: true}
+      );
+      recurringOk = true;
+    } catch (err: unknown) {
+      logger.warn(
+        "Plaid transactionsRecurringGet failed (item may lack product)",
+        plaidAxiosFailureFields(err)
+      );
+      if (err && typeof err === "object" && "response" in err) {
+        const res = (err as { response?: { data?: unknown } }).response;
+        await recurringRef.set(
+          {
+            synced_at: new Date(),
+            error:
+              res?.data !== undefined ?
+                JSON.stringify(res.data) :
+                messageFromPlaidAxiosError(err, "unknown_error"),
+          },
+          {merge: true}
+        );
+      }
+    }
+
+    try {
+      const liabResponse = await plaid.liabilitiesGet({
+        access_token: accessToken,
+      });
+      const liabData = liabResponse.data;
+      await liabilitiesRef.set(
+        {
+          accounts: liabData.accounts ?? [],
+          liabilities: liabData.liabilities ?? {},
+          item: liabData.item ?? null,
+          synced_at: new Date(),
+          error: null,
+        },
+        {merge: true}
+      );
+      liabilitiesOk = true;
+    } catch (err: unknown) {
+      logger.warn(
+        "Plaid liabilitiesGet failed (product not enabled or unsupported)",
+        plaidAxiosFailureFields(err)
+      );
+      if (err && typeof err === "object" && "response" in err) {
+        const res = (err as { response?: { data?: unknown } }).response;
+        await liabilitiesRef.set(
+          {
+            synced_at: new Date(),
+            error:
+              res?.data !== undefined ?
+                JSON.stringify(res.data) :
+                messageFromPlaidAxiosError(err, "unknown_error"),
+          },
+          {merge: true}
+        );
+      }
+    }
+
+    return {
+      success: recurringOk || liabilitiesOk,
+      recurring: recurringOk,
+      liabilities: liabilitiesOk,
+    };
   }
 );

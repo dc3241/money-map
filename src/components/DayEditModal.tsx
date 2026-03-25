@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { useBudgetStore } from '../store/useBudgetStore';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidRangeTransactionsState } from '../context/PlaidRangeTransactionsContext';
+import {
+  plaidDailyTotal,
+  plaidIncomeOnDate,
+  plaidSpendingOnDate,
+  formatPlaidIncomeLabel,
+  formatPlaidSpendingLabel,
+} from '../utils/plaidAggregates';
 import TransactionInput from './TransactionInput';
 import type { Transaction } from '../types';
 
@@ -16,6 +25,8 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   const removeTransaction = useBudgetStore((state) => state.removeTransaction);
   const updateTransaction = useBudgetStore((state) => state.updateTransaction);
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
+  const { transactions: plaidTransactions } = usePlaidRangeTransactionsState();
+  const { usePlaidForActuals } = usePlaidActuals();
 
   const categories = useBudgetStore((state) => state.categories);
   const accounts = useBudgetStore((state) => state.accounts);
@@ -29,7 +40,23 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   const dateKey = format(date, 'yyyy-MM-dd');
   // Get dayData from the subscribed days object
   const dayData = days[dateKey] || { date: dateKey, income: [], spending: [], transfers: [] };
-  const totals = getDailyTotal(dateKey);
+  const storeTotals = getDailyTotal(dateKey);
+  const plaidDayTotals = plaidDailyTotal(plaidTransactions, dateKey);
+  const manualIncome = dayData.income.reduce((s, t) => s + t.amount, 0);
+  const manualSpending = (dayData.spending || []).reduce((s, t) => s + t.amount, 0);
+  const totals = usePlaidForActuals
+    ? {
+        income: plaidDayTotals.income + manualIncome,
+        spending: plaidDayTotals.spending + manualSpending,
+        profit:
+          plaidDayTotals.income +
+          manualIncome -
+          (plaidDayTotals.spending + manualSpending),
+      }
+    : storeTotals;
+
+  const plaidIncomeList = plaidIncomeOnDate(plaidTransactions, dateKey);
+  const plaidSpendingList = plaidSpendingOnDate(plaidTransactions, dateKey);
 
   const handleAddIncome = (amount: number, description: string, accountId?: string, categoryId?: string) => {
     const transaction: Transaction = {
@@ -147,7 +174,14 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900">{format(date, 'EEEE, MMMM d, yyyy')}</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">{format(date, 'EEEE, MMMM d, yyyy')}</h2>
+            {usePlaidForActuals && (
+              <p className="text-sm text-gray-500 mt-1">
+                Bank activity from Plaid. Add manual entries below only if you track cash outside your linked accounts.
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 text-2xl font-bold transition-colors flex-shrink-0"
@@ -160,7 +194,26 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
           {/* Income Section */}
           <div className="border-l-4 border-emerald-500 bg-white rounded-lg p-4 shadow-md min-w-0 flex flex-col">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Income</h3>
-            <TransactionInput type="income" onAdd={handleAddIncome} />
+            {!usePlaidForActuals && <TransactionInput type="income" onAdd={handleAddIncome} />}
+            {usePlaidForActuals && plaidIncomeList.length > 0 && (
+              <div className="space-y-2 mb-2">
+                <div className="text-xs text-gray-400 uppercase tracking-wide">From bank</div>
+                {plaidIncomeList.map((tx) => (
+                  <div
+                    key={tx.transaction_id}
+                    className="bg-emerald-50 rounded p-2 border border-emerald-100"
+                  >
+                    <div className="font-semibold tabular-nums text-emerald-600">
+                      {formatCurrency(Math.abs(tx.amount))}
+                    </div>
+                    <div className="text-xs text-gray-600 truncate">{formatPlaidIncomeLabel(tx)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {usePlaidForActuals && dayData.income.length > 0 && (
+              <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Manual</div>
+            )}
             <div className="space-y-2 max-h-48 overflow-y-auto flex-1 min-h-0">
               {dayData.income.map((transaction) => {
                 const isRecurring = transaction.isRecurring || !!transaction.recurringId;
@@ -273,7 +326,10 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                   </div>
                 );
               })}
-              {dayData.income.length === 0 && (
+              {dayData.income.length === 0 && !usePlaidForActuals && (
+                <div className="text-sm text-gray-500 text-center py-4">No income entries</div>
+              )}
+              {usePlaidForActuals && dayData.income.length === 0 && plaidIncomeList.length === 0 && (
                 <div className="text-sm text-gray-500 text-center py-4">No income entries</div>
               )}
             </div>
@@ -287,7 +343,26 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
           {/* Spending Section */}
           <div className="border-l-4 border-rose-500 bg-white rounded-lg p-4 shadow-md min-w-0 flex flex-col">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Spending</h3>
-            <TransactionInput type="spending" onAdd={handleAddSpending} />
+            {!usePlaidForActuals && <TransactionInput type="spending" onAdd={handleAddSpending} />}
+            {usePlaidForActuals && plaidSpendingList.length > 0 && (
+              <div className="space-y-2 mb-2">
+                <div className="text-xs text-gray-400 uppercase tracking-wide">From bank</div>
+                {plaidSpendingList.map((tx) => (
+                  <div
+                    key={tx.transaction_id}
+                    className="bg-rose-50 rounded p-2 border border-rose-100"
+                  >
+                    <div className="font-semibold tabular-nums text-rose-600">
+                      {formatCurrency(tx.amount)}
+                    </div>
+                    <div className="text-xs text-gray-600 truncate">{formatPlaidSpendingLabel(tx)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {usePlaidForActuals && dayData.spending.length > 0 && (
+              <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Manual</div>
+            )}
             <div className="space-y-2 max-h-48 overflow-y-auto flex-1 min-h-0">
               {dayData.spending.map((transaction) => {
                 const isRecurring = transaction.isRecurring || !!transaction.recurringId;
@@ -400,7 +475,10 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                   </div>
                 );
               })}
-              {dayData.spending.length === 0 && (
+              {dayData.spending.length === 0 && !usePlaidForActuals && (
+                <div className="text-sm text-gray-500 text-center py-4">No spending entries</div>
+              )}
+              {usePlaidForActuals && dayData.spending.length === 0 && plaidSpendingList.length === 0 && (
                 <div className="text-sm text-gray-500 text-center py-4">No spending entries</div>
               )}
             </div>

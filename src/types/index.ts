@@ -121,7 +121,9 @@ export interface SavingsGoal {
   targetAmount: number;
   currentAmount: number;
   targetDate?: string; // Optional target date
-  accountId?: string; // Link to specific account
+  accountId?: string; // Link to manual budget-store account (offline mode)
+  /** Plaid `account_id` when bank-linked; progress uses live balance when set. */
+  plaidAccountId?: string;
   createdAt: string;
 }
 

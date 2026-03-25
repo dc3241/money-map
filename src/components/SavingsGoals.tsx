@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import { format, differenceInDays, differenceInMonths, differenceInYears } from 'date-fns';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
 
 // Goal icon mapping
 const getGoalIcon = (goalName: string): string => {
@@ -35,6 +37,8 @@ const getTimeRemaining = (targetDate?: string): { text: string; urgency: 'low' |
 };
 
 const SavingsGoals: React.FC = () => {
+  const { usePlaidForActuals } = usePlaidActuals();
+  const { accounts: plaidAccounts } = usePlaidAccounts();
   const goals = useBudgetStore((state) => state.savingsGoals);
   const accounts = useBudgetStore((state) => state.accounts);
   const addSavingsGoal = useBudgetStore((state) => state.addSavingsGoal);
@@ -54,12 +58,45 @@ const SavingsGoals: React.FC = () => {
   const [newGoalTarget, setNewGoalTarget] = useState('');
   const [newGoalDate, setNewGoalDate] = useState('');
   const [newGoalAccount, setNewGoalAccount] = useState('');
+  const [newGoalPlaidAccount, setNewGoalPlaidAccount] = useState('');
   
   // Edit goal states
   const [editGoalName, setEditGoalName] = useState('');
   const [editGoalTarget, setEditGoalTarget] = useState('');
   const [editGoalDate, setEditGoalDate] = useState('');
   const [editGoalAccount, setEditGoalAccount] = useState('');
+  const [editGoalPlaidAccount, setEditGoalPlaidAccount] = useState('');
+
+  const balanceByPlaidAccountId = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const a of plaidAccounts) {
+      const id = a.account_id;
+      if (!id) continue;
+      const raw = a.current_balance ?? a.available_balance;
+      if (raw != null && Number.isFinite(Number(raw))) m[id] = Number(raw);
+    }
+    return m;
+  }, [plaidAccounts]);
+
+  const getDisplayProgress = useCallback(
+    (goalId: string) => {
+      const goal = goals.find((g) => g.id === goalId);
+      const base = getGoalProgress(goalId);
+      if (!goal || !usePlaidForActuals || !goal.plaidAccountId) return base;
+      const live = balanceByPlaidAccountId[goal.plaidAccountId];
+      if (live == null || Number.isNaN(live)) return base;
+      const current = Math.max(0, live);
+      return {
+        current,
+        target: goal.targetAmount,
+        percentage:
+          goal.targetAmount > 0
+            ? Math.min(100, (current / goal.targetAmount) * 100)
+            : 0,
+      };
+    },
+    [goals, getGoalProgress, usePlaidForActuals, balanceByPlaidAccountId]
+  );
   
   const handleAddGoal = () => {
     const target = parseFloat(newGoalTarget);
@@ -68,12 +105,14 @@ const SavingsGoals: React.FC = () => {
         name: newGoalName.trim(),
         targetAmount: target,
         targetDate: newGoalDate || undefined,
-        accountId: newGoalAccount || undefined,
+        accountId: newGoalPlaidAccount ? undefined : newGoalAccount || undefined,
+        plaidAccountId: newGoalPlaidAccount || undefined,
       });
       setNewGoalName('');
       setNewGoalTarget('');
       setNewGoalDate('');
       setNewGoalAccount('');
+      setNewGoalPlaidAccount('');
       setShowAddModal(false);
     }
   };
@@ -97,6 +136,7 @@ const SavingsGoals: React.FC = () => {
       setEditGoalTarget(goal.targetAmount.toString());
       setEditGoalDate(goal.targetDate || '');
       setEditGoalAccount(goal.accountId || '');
+      setEditGoalPlaidAccount(goal.plaidAccountId || '');
       setShowEditModal(true);
     }
   };
@@ -109,7 +149,8 @@ const SavingsGoals: React.FC = () => {
         name: editGoalName.trim(),
         targetAmount: target,
         targetDate: editGoalDate || undefined,
-        accountId: editGoalAccount || undefined,
+        accountId: editGoalPlaidAccount ? undefined : editGoalAccount || undefined,
+        plaidAccountId: editGoalPlaidAccount || undefined,
       });
       setShowEditModal(false);
       setEditingGoalId(null);
@@ -117,6 +158,7 @@ const SavingsGoals: React.FC = () => {
       setEditGoalTarget('');
       setEditGoalDate('');
       setEditGoalAccount('');
+      setEditGoalPlaidAccount('');
     }
   };
   
@@ -131,10 +173,13 @@ const SavingsGoals: React.FC = () => {
 
   // Calculate total progress across all goals
   const totalProgress = goals.length > 0
-    ? goals.reduce((sum, goal) => sum + getGoalProgress(goal.id).percentage, 0) / goals.length
+    ? goals.reduce((sum, goal) => sum + getDisplayProgress(goal.id).percentage, 0) / goals.length
     : 0;
 
-  const totalCurrent = goals.reduce((sum, goal) => sum + goal.currentAmount, 0);
+  const totalCurrent = goals.reduce(
+    (sum, goal) => sum + getDisplayProgress(goal.id).current,
+    0
+  );
   const totalTarget = goals.reduce((sum, goal) => sum + goal.targetAmount, 0);
   
   return (
@@ -147,7 +192,11 @@ const SavingsGoals: React.FC = () => {
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Savings Goals
               </h1>
-              <p className="text-text-muted text-sm">Track your progress toward financial milestones</p>
+              <p className="text-text-muted text-sm">
+                Track your progress toward financial milestones
+                {usePlaidForActuals &&
+                  ' — link a goal to a Plaid account to show live balance as progress.'}
+              </p>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
@@ -181,8 +230,11 @@ const SavingsGoals: React.FC = () => {
         {goals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {goals.map((goal) => {
-              const progress = getGoalProgress(goal.id);
+              const progress = getDisplayProgress(goal.id);
               const account = goal.accountId ? accounts.find(a => a.id === goal.accountId) : null;
+              const plaidAcct = goal.plaidAccountId
+                ? plaidAccounts.find((a) => a.account_id === goal.plaidAccountId)
+                : null;
               const timeRemaining = getTimeRemaining(goal.targetDate);
               const isComplete = progress.percentage >= 100;
               const icon = getGoalIcon(goal.name);
@@ -201,7 +253,13 @@ const SavingsGoals: React.FC = () => {
                       <div className="text-3xl bg-surface-2 rounded-xl px-2 py-1">{icon}</div>
                       <div>
                         <h3 className="text-text-primary font-semibold text-sm">{goal.name}</h3>
-                        {account && (
+                        {plaidAcct && usePlaidForActuals && (
+                          <p className="text-text-muted text-xs mt-0.5">
+                            Linked: {plaidAcct.name}
+                            {plaidAcct.mask ? ` · ${plaidAcct.mask}` : ''}
+                          </p>
+                        )}
+                        {account && !goal.plaidAccountId && (
                           <p className="text-text-muted text-xs mt-0.5">{account.name}</p>
                         )}
                       </div>
@@ -236,11 +294,18 @@ const SavingsGoals: React.FC = () => {
                   {/* Amounts */}
                   <div className="space-y-2 mb-4">
                     <div className="flex justify-between items-baseline">
-                      <span className="text-text-muted text-xs">Current</span>
+                      <span className="text-text-muted text-xs">
+                        {goal.plaidAccountId && usePlaidForActuals ? 'Current (bank)' : 'Current'}
+                      </span>
                       <span className="text-income-green font-semibold tabular-nums">
-                        {formatCurrency(goal.currentAmount)}
+                        {formatCurrency(progress.current)}
                       </span>
                     </div>
+                    {goal.plaidAccountId && usePlaidForActuals && goal.currentAmount > 0 && (
+                      <p className="text-text-muted text-xs">
+                        Manual entries: {formatCurrency(goal.currentAmount)}
+                      </p>
+                    )}
                     <div className="flex justify-between items-baseline">
                       <span className="text-text-muted text-xs">Target</span>
                       <span className="text-text-secondary text-sm tabular-nums">
@@ -250,7 +315,7 @@ const SavingsGoals: React.FC = () => {
                     <div className="flex justify-between items-baseline pt-2 border-t border-border-subtle">
                       <span className="text-text-muted text-xs">Remaining</span>
                       <span className="text-text-secondary text-sm font-medium tabular-nums">
-                        {formatCurrency(goal.targetAmount - goal.currentAmount)}
+                        {formatCurrency(Math.max(0, goal.targetAmount - progress.current))}
                       </span>
                     </div>
                   </div>
@@ -365,8 +430,12 @@ const SavingsGoals: React.FC = () => {
                   </label>
                   <select
                     value={newGoalAccount}
-                    onChange={(e) => setNewGoalAccount(e.target.value)}
-                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
+                    onChange={(e) => {
+                      setNewGoalAccount(e.target.value);
+                      if (e.target.value) setNewGoalPlaidAccount('');
+                    }}
+                    disabled={!!newGoalPlaidAccount}
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all disabled:opacity-50"
                   >
                     <option value="">No specific account</option>
                     {accounts.map((account) => (
@@ -376,6 +445,29 @@ const SavingsGoals: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                {usePlaidForActuals && plaidAccounts.length > 0 && (
+                  <div>
+                    <label className="block text-sm text-text-secondary mb-2">
+                      Linked bank account <span className="text-text-muted font-normal">(live balance)</span>
+                    </label>
+                    <select
+                      value={newGoalPlaidAccount}
+                      onChange={(e) => {
+                        setNewGoalPlaidAccount(e.target.value);
+                        if (e.target.value) setNewGoalAccount('');
+                      }}
+                      className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
+                    >
+                      <option value="">None</option>
+                      {plaidAccounts.map((a) => (
+                        <option key={a.account_id} value={a.account_id}>
+                          {a.name}
+                          {a.mask ? ` · ${a.mask}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleAddGoal}
@@ -390,6 +482,7 @@ const SavingsGoals: React.FC = () => {
                       setNewGoalTarget('');
                       setNewGoalDate('');
                       setNewGoalAccount('');
+                      setNewGoalPlaidAccount('');
                     }}
                     className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >
@@ -408,6 +501,7 @@ const SavingsGoals: React.FC = () => {
             onClick={() => {
               setShowEditModal(false);
               setEditingGoalId(null);
+              setEditGoalPlaidAccount('');
             }}
           >
             <div 
@@ -465,8 +559,12 @@ const SavingsGoals: React.FC = () => {
                   </label>
                   <select
                     value={editGoalAccount}
-                    onChange={(e) => setEditGoalAccount(e.target.value)}
-                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
+                    onChange={(e) => {
+                      setEditGoalAccount(e.target.value);
+                      if (e.target.value) setEditGoalPlaidAccount('');
+                    }}
+                    disabled={!!editGoalPlaidAccount}
+                    className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all disabled:opacity-50"
                   >
                     <option value="">No specific account</option>
                     {accounts.map((account) => (
@@ -476,6 +574,29 @@ const SavingsGoals: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                {usePlaidForActuals && plaidAccounts.length > 0 && (
+                  <div>
+                    <label className="block text-sm text-text-secondary mb-2">
+                      Linked bank account <span className="text-text-muted font-normal">(live balance)</span>
+                    </label>
+                    <select
+                      value={editGoalPlaidAccount}
+                      onChange={(e) => {
+                        setEditGoalPlaidAccount(e.target.value);
+                        if (e.target.value) setEditGoalAccount('');
+                      }}
+                      className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
+                    >
+                      <option value="">None</option>
+                      {plaidAccounts.map((a) => (
+                        <option key={a.account_id} value={a.account_id}>
+                          {a.name}
+                          {a.mask ? ` · ${a.mask}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleUpdateGoal}
@@ -487,6 +608,7 @@ const SavingsGoals: React.FC = () => {
                     onClick={() => {
                       setShowEditModal(false);
                       setEditingGoalId(null);
+                      setEditGoalPlaidAccount('');
                     }}
                     className="flex-1 px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
                   >

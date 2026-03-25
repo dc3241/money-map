@@ -1,35 +1,55 @@
 rules_version = '2';
+// Security notes:
+// - Plaid tokens live under users/{uid}/plaidData — client read-only; only Cloud Functions write.
+// - Support: admins must have a document at adminUsers/{theirAuthUid} (create in Firebase Console)
+//   so they can list/update all supportTickets. Regular users only see their own tickets.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read and write their own user document
-    match /users/{userId} {
-      // Only allow access if the authenticated user's ID matches the document ID
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // Admin allowlist (UIDs only). Create via Console: adminUsers/{uid} = { "active": true }
+    match /adminUsers/{adminId} {
+      allow read, write: if false;
     }
-    
-    // Support tickets
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /plaidData/{docId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
+      match /accounts/{accountId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+
     match /supportTickets/{ticketId} {
-      // Allow authenticated users to create tickets
-      allow create: if request.auth != null 
+      allow create: if request.auth != null
                     && request.resource.data.userId == request.auth.uid
                     && request.resource.data.userEmail == request.auth.token.email;
-      
-      // Allow authenticated users to read tickets
-      // Note: Admin filtering is handled in the app UI
-      // Users will only see their own tickets in the UI, admins see all
-      allow read: if request.auth != null;
-      
-      // Allow users to update their own tickets (for adding user responses)
-      allow update: if request.auth != null 
+
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid))
+      );
+
+      allow update: if request.auth != null
                     && resource.data.userId == request.auth.uid
-                    && request.resource.data.userId == resource.data.userId // Prevent changing userId
-                    && request.resource.data.userEmail == resource.data.userEmail; // Prevent changing email
-      
-      // Allow any authenticated user to update tickets
-      // Note: Admin status is checked in the app code before allowing updates
-      // For production, consider using Firebase Custom Claims for better security
-      allow update: if request.auth != null;
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.userEmail == resource.data.userEmail;
+
+      allow update: if request.auth != null
+                    && exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid))
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.userEmail == resource.data.userEmail;
     }
   }
 }
-

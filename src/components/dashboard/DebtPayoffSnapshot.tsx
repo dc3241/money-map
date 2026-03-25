@@ -1,5 +1,8 @@
 import React, { useMemo } from 'react';
 import { useBudgetStore } from '../../store/useBudgetStore';
+import { usePlaidActuals } from '../../context/PlaidActualsContext';
+import { usePlaidLiabilitiesFirestore } from '../../hooks/usePlaidLiabilitiesFirestore';
+import { plaidLiabilitiesToRows } from '../../utils/plaidLiabilitiesFlatten';
 
 interface DebtPayoffSnapshotProps {
   year: number;
@@ -8,8 +11,17 @@ interface DebtPayoffSnapshotProps {
 }
 
 const DebtPayoffSnapshot: React.FC<DebtPayoffSnapshotProps> = ({ year, month, onViewDebt }) => {
+  const { usePlaidForActuals } = usePlaidActuals();
+  const { data: plaidLiab } = usePlaidLiabilitiesFirestore();
   const debts = useBudgetStore((state) => state.debts);
   const debtPayments = useBudgetStore((state) => state.debtPayments);
+
+  const bankLiabilityTotal = useMemo(() => {
+    if (!usePlaidForActuals || plaidLiab.error) return null;
+    const rows = plaidLiabilitiesToRows(plaidLiab.liabilities, plaidLiab.accounts);
+    const t = rows.reduce((sum, r) => sum + (r.balance ?? 0), 0);
+    return rows.length > 0 ? t : null;
+  }, [usePlaidForActuals, plaidLiab.liabilities, plaidLiab.accounts, plaidLiab.error]);
 
   const paidThisMonth = useMemo(() => {
     const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -46,8 +58,16 @@ const DebtPayoffSnapshot: React.FC<DebtPayoffSnapshotProps> = ({ year, month, on
       </div>
       <div className="flex justify-between items-baseline mb-3">
         <div>
-          <div className="text-text-muted text-xs uppercase">Total debt</div>
+          <div className="text-text-muted text-xs uppercase">Plan total (manual)</div>
           <div className="text-lg font-bold text-text-primary tabular-nums">{formatCurrency(totalDebt)}</div>
+          {bankLiabilityTotal != null && (
+            <div className="mt-2">
+              <div className="text-text-muted text-xs uppercase">Bank snapshot (Plaid)</div>
+              <div className="text-base font-semibold text-spending-red tabular-nums">
+                {formatCurrency(bankLiabilityTotal)}
+              </div>
+            </div>
+          )}
         </div>
         <div className="text-right">
           <div className="text-text-muted text-xs uppercase">Paid off</div>

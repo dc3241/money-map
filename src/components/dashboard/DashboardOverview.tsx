@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { getWeekRange } from '../../utils/dateUtils';
 import { useBudgetStore } from '../../store/useBudgetStore';
+import { usePlaidActuals } from '../../context/PlaidActualsContext';
+import { PlaidRangeTransactionsProvider, usePlaidRangeTransactionsState } from '../../context/PlaidRangeTransactionsContext';
+import { plaidWeeklyTotal, plaidMonthlyTotal } from '../../utils/plaidAggregates';
 import DashboardHeader, { type ViewMode } from './DashboardHeader';
 import DashboardMetricCard from './DashboardMetricCard';
 import DashboardWeeklyView from './DashboardWeeklyView';
@@ -8,6 +11,7 @@ import AccountsAtAGlance from './AccountsAtAGlance';
 import BudgetSnapshot from './BudgetSnapshot';
 import DebtPayoffSnapshot from './DebtPayoffSnapshot';
 import RecentTransactions from './RecentTransactions';
+import UpcomingRecurring from './UpcomingRecurring';
 import MonthSummaryCard from './MonthSummaryCard';
 
 interface DashboardOverviewProps {
@@ -16,13 +20,15 @@ interface DashboardOverviewProps {
   onViewChange?: (view: 'accounts' | 'budgets' | 'debt') => void;
 }
 
-const DashboardOverview: React.FC<DashboardOverviewProps> = ({
+const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
   currentDate,
   onDateChange,
   onViewChange,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
 
+  const { transactions: plaidTransactions } = usePlaidRangeTransactionsState();
+  const { usePlaidForActuals } = usePlaidActuals();
   const getWeeklyTotal = useBudgetStore((state) => state.getWeeklyTotal);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
 
@@ -30,8 +36,18 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
 
-  const weekly = getWeeklyTotal(weekRange.start, weekRange.end);
-  const monthly = getMonthlyTotal(year, month);
+  const plaidWeekly = useMemo(
+    () => plaidWeeklyTotal(plaidTransactions, weekRange.start, weekRange.end),
+    [plaidTransactions, weekRange.start, weekRange.end]
+  );
+
+  const plaidMonthly = useMemo(
+    () => plaidMonthlyTotal(plaidTransactions, year, month),
+    [plaidTransactions, year, month]
+  );
+
+  const weekly = usePlaidForActuals ? plaidWeekly : getWeeklyTotal(weekRange.start, weekRange.end);
+  const monthly = usePlaidForActuals ? plaidMonthly : getMonthlyTotal(year, month);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
@@ -81,15 +97,10 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           />
         </div>
 
-        {/* Main content: week grid or month summary + sidebar cards */}
+        {/* Main content: week grid + sidebar cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          {/* Left: Weekly view (week mode) or Month summary (month mode) */}
           <div className="lg:col-span-2 min-h-[280px] md:min-h-[320px]">
-            {viewMode === 'week' ? (
-              <DashboardWeeklyView currentDate={currentDate} onDateChange={onDateChange} />
-            ) : (
-              <MonthSummaryCard year={year} month={month} />
-            )}
+            <DashboardWeeklyView currentDate={currentDate} onDateChange={onDateChange} />
           </div>
 
           {/* Right: Accounts, Budget, Debt */}
@@ -100,20 +111,25 @@ const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
         </div>
 
-        {/* Bottom: Recent transactions + Monthly summary (when in week view) */}
+        {/* Bottom: Recent transactions + Upcoming + Month summary */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="min-h-[200px]">
-            <RecentTransactions />
+            <RecentTransactions limit={6} />
           </div>
-          {viewMode === 'week' && (
-            <div>
-              <MonthSummaryCard year={year} month={month} />
-            </div>
-          )}
+          <div className="flex flex-col gap-4">
+            <UpcomingRecurring />
+            <MonthSummaryCard year={year} month={month} />
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+const DashboardOverview: React.FC<DashboardOverviewProps> = (props) => (
+  <PlaidRangeTransactionsProvider anchorDate={props.currentDate}>
+    <DashboardOverviewInner {...props} />
+  </PlaidRangeTransactionsProvider>
+);
 
 export default DashboardOverview;

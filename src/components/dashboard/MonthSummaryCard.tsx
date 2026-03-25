@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useBudgetStore } from '../../store/useBudgetStore';
 import { format } from 'date-fns';
+import { usePlaidActuals } from '../../context/PlaidActualsContext';
+import { usePlaidRangeTransactionsState } from '../../context/PlaidRangeTransactionsContext';
+import { plaidMonthlyTotal } from '../../utils/plaidAggregates';
 
 interface MonthSummaryCardProps {
   year: number;
@@ -9,7 +12,12 @@ interface MonthSummaryCardProps {
 
 const MonthSummaryCard: React.FC<MonthSummaryCardProps> = ({ year, month }) => {
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
-  const monthly = getMonthlyTotal(year, month);
+  const { transactions } = usePlaidRangeTransactionsState();
+  const { usePlaidForActuals } = usePlaidActuals();
+  const monthly = useMemo(() => {
+    if (usePlaidForActuals) return plaidMonthlyTotal(transactions, year, month);
+    return getMonthlyTotal(year, month);
+  }, [usePlaidForActuals, transactions, getMonthlyTotal, year, month]);
 
   const income = monthly.income;
   const spending = monthly.spending;

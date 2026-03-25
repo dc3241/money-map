@@ -23,8 +23,14 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
+// Callable functions: use httpsCallable only (no fetch/axios). SDK handles CORS and auth.
 const functions = getFunctions(app, "us-central1");
 export const createLinkToken = httpsCallable<unknown, { linkToken: string }>(functions, "createLinkToken");
 export const exchangePublicToken = httpsCallable<{ publicToken: string }, { success: boolean }>(functions, "exchangePublicToken");
 export const syncTransactions = httpsCallable<unknown, { success: boolean; added?: number; modified?: number }>(functions, "syncTransactions");
+export const syncBalances = httpsCallable<unknown, { success: boolean }>(functions, "syncBalances");
+export const syncPlaidInsights = httpsCallable<
+  unknown,
+  { success: boolean; recurring?: boolean; liabilities?: boolean }
+>(functions, "syncPlaidInsights");
 export default app;

@@ -1,6 +1,9 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { useBudgetStore } from '../store/useBudgetStore';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidRangeTransactionsState } from '../context/PlaidRangeTransactionsContext';
+import { plaidDailyTotal } from '../utils/plaidAggregates';
 
 interface DayBoxProps {
   date: Date;
@@ -11,9 +14,13 @@ interface DayBoxProps {
 
 const DayBox: React.FC<DayBoxProps> = ({ date, isCurrentMonth, onClick, isToday = false }) => {
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
+  const { transactions } = usePlaidRangeTransactionsState();
+  const { usePlaidForActuals } = usePlaidActuals();
 
   const dateKey = format(date, 'yyyy-MM-dd');
-  const totals = getDailyTotal(dateKey);
+  const storeTotals = getDailyTotal(dateKey);
+  const plaidTotals = plaidDailyTotal(transactions, dateKey);
+  const totals = usePlaidForActuals ? plaidTotals : storeTotals;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -79,4 +86,3 @@ const DayBox: React.FC<DayBoxProps> = ({ date, isCurrentMonth, onClick, isToday 
 };
 
 export default DayBox;
-

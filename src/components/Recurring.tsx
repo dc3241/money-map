@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import RecurringPlaidView from './RecurringPlaidView';
 import type { RecurringExpense, RecurringIncome, RecurrencePattern } from '../types';
 import { formatRecurrencePattern, getNextOccurrence } from '../utils/recurrenceUtils';
 import { format } from 'date-fns';
@@ -533,6 +535,7 @@ const ConfirmDeleteDialog: React.FC<ConfirmDeleteDialogProps> = ({ itemName, onC
 };
 
 const Recurring: React.FC = () => {
+  const { usePlaidForActuals } = usePlaidActuals();
   const recurringExpenses = useBudgetStore((state) => state.recurringExpenses);
   const recurringIncome = useBudgetStore((state) => state.recurringIncome);
   const addRecurringExpense = useBudgetStore((state) => state.addRecurringExpense);
@@ -667,6 +670,10 @@ const Recurring: React.FC = () => {
 
     return filtered;
   }, [recurringIncome, incomeFilter, incomeCategoryFilter, incomeSort]);
+
+  if (usePlaidForActuals) {
+    return <RecurringPlaidView />;
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-bg-app">

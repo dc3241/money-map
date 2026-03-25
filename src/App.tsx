@@ -8,6 +8,8 @@ import { useBudgetStore, rehydrateBudgetCache } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useWalkthroughStore } from './store/useWalkthroughStore';
 import { useWalkthroughAutoComplete } from './hooks/useWalkthroughAutoComplete';
+import { useSessionInactivity } from './hooks/useSessionInactivity';
+import { PlaidActualsProvider } from './context/PlaidActualsContext';
 
 // Lazy load components that aren't immediately needed
 const DashboardOverview = lazy(() => import('./components/dashboard/DashboardOverview'));
@@ -88,6 +90,9 @@ function Dashboard() {
   // Auto-complete tasks based on user actions
   useWalkthroughAutoComplete();
 
+  // Sign out after 30 minutes of no activity while dashboard is open
+  useSessionInactivity();
+
   // Auto-populate recurring items for current month on app load/initialization
   // This ensures transactions are created when the day changes or app is opened
   useEffect(() => {
@@ -126,46 +131,48 @@ function Dashboard() {
         onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
 
-      {/* Main Content Area */}
-      <Suspense fallback={<LoadingSpinner />}>
-        {currentView === 'dashboard' ? (
-          <div className="flex-1 flex flex-col h-full md:ml-0 pb-16 md:pb-0 min-w-0">
-            <DashboardOverview
-              currentDate={currentDate}
-              onDateChange={setCurrentDate}
-              onViewChange={handleViewChange}
-            />
-          </div>
-        ) : currentView === 'recurring' ? (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
-            <Recurring />
-          </div>
-        ) : currentView === 'accounts' ? (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
-            <Accounts />
-          </div>
-        ) : currentView === 'budgets' ? (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0 overflow-x-hidden w-full max-w-full min-w-0">
-            <Budgets />
-          </div>
-        ) : currentView === 'goals' ? (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
-            <SavingsGoals />
-          </div>
-        ) : currentView === 'debt' ? (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
-            <DebtTracking />
-          </div>
-        ) : currentView === 'profile' ? (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
-            <Profile />
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
-            <Reporting />
-          </div>
-        )}
-      </Suspense>
+      {/* Main Content Area — PlaidActualsProvider shares one txn/account subscription across dashboard views */}
+      <PlaidActualsProvider>
+        <Suspense fallback={<LoadingSpinner />}>
+          {currentView === 'dashboard' ? (
+            <div className="flex-1 flex flex-col h-full md:ml-0 pb-16 md:pb-0 min-w-0">
+              <DashboardOverview
+                currentDate={currentDate}
+                onDateChange={setCurrentDate}
+                onViewChange={handleViewChange}
+              />
+            </div>
+          ) : currentView === 'recurring' ? (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+              <Recurring />
+            </div>
+          ) : currentView === 'accounts' ? (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+              <Accounts />
+            </div>
+          ) : currentView === 'budgets' ? (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0 overflow-x-hidden w-full max-w-full min-w-0">
+              <Budgets />
+            </div>
+          ) : currentView === 'goals' ? (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+              <SavingsGoals />
+            </div>
+          ) : currentView === 'debt' ? (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+              <DebtTracking />
+            </div>
+          ) : currentView === 'profile' ? (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+              <Profile />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col h-full pb-16 md:pb-0">
+              <Reporting />
+            </div>
+          )}
+        </Suspense>
+      </PlaidActualsProvider>
 
       {/* Walkthrough Overlay */}
       {!isCompleted && !isLoading && (

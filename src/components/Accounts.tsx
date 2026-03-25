@@ -2,6 +2,26 @@ import { useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import type { AccountType, Account } from '../types';
 import PlaidLink from './PlaidLink';
+import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
+import { syncTransactions, syncBalances, syncPlaidInsights } from '../config/firebase';
+
+// Map Plaid account type to display type
+const plaidTypeToLabel: Record<string, string> = {
+  depository: 'Bank',
+  credit: 'Credit',
+  loan: 'Loan',
+  investment: 'Investment',
+  other: 'Other',
+};
+const getPlaidAccountIcon = (type: string): string => {
+  switch (type) {
+    case 'depository': return '💳';
+    case 'credit': return '🏦';
+    case 'loan': return '📋';
+    case 'investment': return '📈';
+    default: return '📊';
+  }
+};
 
 // Account type icon mapping
 const getAccountIcon = (type: AccountType): string => {
@@ -18,10 +38,7 @@ const getAccountIcon = (type: AccountType): string => {
 };
 
 const Accounts: React.FC = () => {
-  // Subscribe to days so component re-renders when transactions are added/updated
-  const days = useBudgetStore((state) => state.days);
-  // Ensure days is tracked by referencing it (prevents unused var warning while maintaining subscription)
-  void days;
+  const { accounts: plaidAccounts } = usePlaidAccounts();
   const accounts = useBudgetStore((state) => state.accounts);
   const addAccount = useBudgetStore((state) => state.addAccount);
   const removeAccount = useBudgetStore((state) => state.removeAccount);
@@ -32,6 +49,27 @@ const Accounts: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const hasPlaidAccounts = plaidAccounts.length > 0;
+  const plaidNetWorth = plaidAccounts.reduce((sum, a) => {
+    const b = a.current_balance ?? 0;
+    return a.type === 'credit' ? sum - b : sum + b;
+  }, 0);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await syncTransactions({});
+      await syncBalances({});
+      try {
+        await syncPlaidInsights({});
+      } catch {
+        /* recurring/liabilities optional */
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
   
   // Add account form state
   const [newAccountName, setNewAccountName] = useState('');
@@ -160,28 +198,68 @@ const Accounts: React.FC = () => {
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Accounts
               </h1>
-              <p className="text-text-muted text-sm">Manage all your financial accounts in one place</p>
+              <p className="text-text-muted text-sm">
+                {hasPlaidAccounts
+                  ? 'Balances come from your linked bank via Plaid. Manual accounts and transfers are hidden while connected.'
+                  : 'Manage all your financial accounts in one place'}
+              </p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowTransferModal(true)}
-                className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl hover:border-border-hover hover:text-text-primary font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={accounts.length < 2}
-              >
-                Transfer
-              </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 flex items-center gap-2"
-              >
-                <span className="text-xl">+</span>
-                <span>Add Account</span>
-              </button>
+              {hasPlaidAccounts && (
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl hover:border-border-hover hover:text-text-primary font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {refreshing ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
+                      Syncing…
+                    </>
+                  ) : (
+                    'Refresh'
+                  )}
+                </button>
+              )}
+              {!hasPlaidAccounts && (
+                <>
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl hover:border-border-hover hover:text-text-primary font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={accounts.length < 2}
+                  >
+                    Transfer
+                  </button>
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 flex items-center gap-2"
+                  >
+                    <span className="text-xl">+</span>
+                    <span>Add Account</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Summary Cards */}
-          {accounts.length > 0 && (
+          {/* Plaid summary when we have linked accounts */}
+          {hasPlaidAccounts && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Net worth (linked)</div>
+                <div className={`text-3xl font-semibold ${plaidNetWorth >= 0 ? 'text-income-green' : 'text-spending-red'}`}>
+                  {formatCurrency(plaidNetWorth)}
+                </div>
+              </div>
+              <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
+                <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Linked accounts</div>
+                <div className="text-3xl font-semibold text-text-primary">{plaidAccounts.length}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Summary Cards (legacy when no Plaid) */}
+          {!hasPlaidAccounts && accounts.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 hover:border-border-hover transition-all duration-200">
                 <div className="text-text-muted text-xs uppercase tracking-widest font-medium mb-1">Total Balance</div>
@@ -211,16 +289,62 @@ const Accounts: React.FC = () => {
         {/* Link bank via Plaid (logged-in users only) */}
         <div className="mb-8">
           <div className="bg-surface-1 border border-border-subtle rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-2">Link your bank</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-2">
+              {hasPlaidAccounts ? 'Link another account' : 'Link your bank'}
+            </h2>
             <p className="text-sm text-text-muted mb-4">
-              Connect your bank account with Plaid to automatically sync transactions.
+              {hasPlaidAccounts
+                ? 'Connect another bank or institution to see all accounts in one place.'
+                : 'Connect your bank account with Plaid to sync transactions and balances.'}
             </p>
             <PlaidLink />
           </div>
         </div>
 
-        {/* Accounts Grid */}
-        {accounts.length > 0 ? (
+        {/* Plaid-linked accounts (read-only) */}
+        {hasPlaidAccounts && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {plaidAccounts.map((account) => {
+              const balance = account.current_balance ?? 0;
+              const isCredit = account.type === 'credit';
+              const displayBalance = isCredit ? -balance : balance;
+              const icon = getPlaidAccountIcon(account.type);
+              const typeLabel = plaidTypeToLabel[account.type] ?? account.type;
+              return (
+                <div
+                  key={account.account_id}
+                  className="group bg-surface-1 border border-border-subtle rounded-xl hover:border-border-hover transition-all duration-200 overflow-hidden p-6"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-4xl bg-surface-2 rounded-xl px-2 py-1">{icon}</div>
+                      <div>
+                        <h3 className="text-xl font-semibold text-text-primary">{account.name}</h3>
+                        <span className="text-xs px-2 py-0.5 bg-surface-2 text-text-secondary rounded-lg font-medium mt-1 inline-block">
+                          {typeLabel}{account.mask ? ` •••${account.mask}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="text-text-muted text-xs uppercase tracking-widest mb-1">
+                      {isCredit ? 'Amount owed' : 'Current balance'}
+                    </div>
+                    <div className={`text-3xl font-semibold tabular-nums ${
+                      isCredit ? 'text-spending-red' : displayBalance >= 0 ? 'text-income-green' : 'text-spending-red'
+                    }`}>
+                      {displayBalance >= 0 ? '' : '-'}{formatCurrency(Math.abs(displayBalance))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-text-muted">Synced via Plaid • balances update when you refresh</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Legacy Accounts Grid (when no Plaid accounts) */}
+        {!hasPlaidAccounts && accounts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {accounts.map((account) => {
               const balance = getAccountBalance(account.id);
@@ -309,26 +433,20 @@ const Accounts: React.FC = () => {
               );
             })}
           </div>
-        ) : (
+        ) : !hasPlaidAccounts ? (
           <div className="text-center py-20">
             <div className="max-w-md mx-auto">
               <div className="text-8xl mb-6">💳</div>
-              <h2 className="text-3xl font-semibold text-text-primary mb-3">Add Your First Account</h2>
+              <h2 className="text-3xl font-semibold text-text-primary mb-3">Connect your bank</h2>
               <p className="text-text-muted text-sm mb-8">
-                Start tracking your finances by adding your checking, savings, and other accounts!
+                Link your accounts with Plaid above to see balances and sync transactions automatically.
               </p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-8 py-4 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 text-lg"
-              >
-                Add Your First Account
-              </button>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Add Account Modal */}
-        {showAddModal && (
+        {/* Add Account Modal — manual mode only */}
+        {showAddModal && !hasPlaidAccounts && (
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={() => setShowAddModal(false)}
@@ -427,8 +545,8 @@ const Accounts: React.FC = () => {
           </div>
         )}
 
-        {/* Transfer Modal */}
-        {showTransferModal && (
+        {/* Transfer Modal — manual mode only */}
+        {showTransferModal && !hasPlaidAccounts && (
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={() => {
@@ -558,8 +676,8 @@ const Accounts: React.FC = () => {
           </div>
         )}
 
-        {/* Edit Account Modal */}
-        {editingAccount && (
+        {/* Edit Account Modal — manual mode only */}
+        {editingAccount && !hasPlaidAccounts && (
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={() => {

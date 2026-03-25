@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidTransactionsInRange } from '../hooks/usePlaidTransactionsInRange';
 import { getWeekRange } from '../utils/dateUtils';
+import { dashboardPlaidRange } from '../utils/plaidVisibleRange';
+import { plaidMonthlyTotal, plaidWeeklyTotal } from '../utils/plaidAggregates';
 import { format } from 'date-fns';
 
 interface SummaryBarProps {
@@ -10,13 +14,27 @@ interface SummaryBarProps {
 const SummaryBar: React.FC<SummaryBarProps> = ({ currentDate }) => {
   const getWeeklyTotal = useBudgetStore((state) => state.getWeeklyTotal);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
-  // Subscribe to days to trigger re-render when transactions change
   useBudgetStore((state) => state.days);
 
+  const { usePlaidForActuals } = usePlaidActuals();
+  const plaidRange = useMemo(() => dashboardPlaidRange(currentDate), [currentDate]);
+  const { transactions } = usePlaidTransactionsInRange(
+    usePlaidForActuals ? plaidRange.start : null,
+    usePlaidForActuals ? plaidRange.end : null
+  );
   const weekRange = getWeekRange(currentDate);
-  
-  const weekly = getWeeklyTotal(weekRange.start, weekRange.end);
-  const monthly = getMonthlyTotal(currentDate.getFullYear(), currentDate.getMonth() + 1);
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1;
+
+  const weekly = useMemo(() => {
+    if (usePlaidForActuals) return plaidWeeklyTotal(transactions, weekRange.start, weekRange.end);
+    return getWeeklyTotal(weekRange.start, weekRange.end);
+  }, [usePlaidForActuals, transactions, weekRange.start, weekRange.end, getWeeklyTotal]);
+
+  const monthly = useMemo(() => {
+    if (usePlaidForActuals) return plaidMonthlyTotal(transactions, year, month);
+    return getMonthlyTotal(year, month);
+  }, [usePlaidForActuals, transactions, year, month, getMonthlyTotal]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

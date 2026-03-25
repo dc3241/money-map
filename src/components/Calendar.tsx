@@ -3,6 +3,9 @@ import { format, addDays, subDays } from 'date-fns';
 import { getWeekGrid, addWeek, subtractWeek } from '../utils/dateUtils';
 import WeekDayBox from './WeekDayBox';
 import DayEditModal from './DayEditModal';
+import DayDetailReadOnly from './DayDetailReadOnly';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { PlaidRangeTransactionsProvider } from '../context/PlaidRangeTransactionsContext';
 
 interface CalendarProps {
   currentDate: Date;
@@ -10,6 +13,7 @@ interface CalendarProps {
 }
 
 const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange }) => {
+  const { usePlaidForActuals } = usePlaidActuals();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // Track the currently displayed day for mobile single-day view
   const [mobileCurrentDay, setMobileCurrentDay] = useState<Date>(currentDate);
@@ -64,6 +68,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange }) => {
   }, [currentDate]);
 
   return (
+    <PlaidRangeTransactionsProvider anchorDate={currentDate}>
     <div className="flex flex-col h-full bg-bg-app">
       {/* Calendar Header */}
       <div className="flex justify-between items-center py-1 md:py-2 px-2 md:px-4 border-b border-border-subtle bg-bg-app overflow-x-hidden">
@@ -87,19 +92,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange }) => {
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 overflow-hidden p-0 md:p-3 min-h-0 overflow-x-hidden min-w-0 bg-bg-app" ref={(el) => {
-        // #region agent log
-        if (el) {
-          setTimeout(() => {
-            const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            const logData = {location:'Calendar.tsx:138',message:'Calendar grid container dimensions',data:{containerWidth:rect.width,containerLeft:rect.left,containerRight:rect.right,containerOverflow:rect.right > window.innerWidth,viewportWidth:window.innerWidth,documentWidth:document.documentElement.clientWidth,computedWidth:style.width,minWidth:style.minWidth,paddingLeft:style.paddingLeft,paddingRight:style.paddingRight},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'C'};
-            console.log('DEBUG:', logData);
-            fetch('http://127.0.0.1:7242/ingest/9a5fadb7-ed49-408b-9ad5-e9f09e1cac2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch((e) => console.error('Log fetch failed:', e));
-          }, 100);
-        }
-        // #endregion
-      }}>
+      <div className="flex-1 overflow-hidden p-0 md:p-3 min-h-0 overflow-x-hidden min-w-0 bg-bg-app">
         <>
             {/* Mobile: Single Day View */}
             <div className="md:hidden h-full flex flex-col overflow-x-hidden w-full">
@@ -132,19 +125,7 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange }) => {
                 </button>
               </div>
               <div className="flex-1 min-h-0 flex items-stretch overflow-x-hidden w-full min-w-0">
-                <div className="w-full flex max-w-full min-w-0 h-full max-h-full px-2 py-1 md:px-0 md:py-0" ref={(el) => {
-                  // #region agent log
-                  if (el) {
-                    setTimeout(() => {
-                      const rect = el.getBoundingClientRect();
-                      const style = window.getComputedStyle(el);
-                      const logData = {location:'Calendar.tsx:183',message:'Card wrapper dimensions',data:{wrapperWidth:rect.width,wrapperLeft:rect.left,wrapperRight:rect.right,viewportWidth:window.innerWidth,documentWidth:document.documentElement.clientWidth,computedWidth:style.width,minWidth:style.minWidth,maxWidth:style.maxWidth,paddingLeft:style.paddingLeft,paddingRight:style.paddingRight,marginLeft:style.marginLeft,marginRight:style.marginRight,boxSizing:style.boxSizing},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'A'};
-                      console.log('DEBUG:', logData);
-                      fetch('http://127.0.0.1:7242/ingest/9a5fadb7-ed49-408b-9ad5-e9f09e1cac2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(logData)}).catch((e) => console.error('Log fetch failed:', e));
-                    }, 100);
-                  }
-                  // #endregion
-                }}>
+                <div className="w-full flex max-w-full min-w-0 h-full max-h-full px-2 py-1 md:px-0 md:py-0">
                   <WeekDayBox
                     date={mobileCurrentDay}
                     isToday={format(mobileCurrentDay, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')}
@@ -174,11 +155,14 @@ const Calendar: React.FC<CalendarProps> = ({ currentDate, onDateChange }) => {
           </>
       </div>
 
-      {/* Edit Modal */}
-      {selectedDate && (
+      {selectedDate && usePlaidForActuals && (
+        <DayDetailReadOnly date={selectedDate} onClose={handleCloseModal} />
+      )}
+      {selectedDate && !usePlaidForActuals && (
         <DayEditModal date={selectedDate} onClose={handleCloseModal} />
       )}
     </div>
+    </PlaidRangeTransactionsProvider>
   );
 };
 

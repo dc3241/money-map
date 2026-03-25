@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import { format } from 'date-fns';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidYearTransactions } from '../hooks/usePlaidYearTransactions';
+import { getPlaidBudgetStatus, getPlaidBudgetTransactionsAsStoreShape } from '../utils/plaidBudget';
 
 const Budgets: React.FC = () => {
   const budgets = useBudgetStore((state) => state.budgets);
@@ -10,6 +13,7 @@ const Budgets: React.FC = () => {
   const updateBudget = useBudgetStore((state) => state.updateBudget);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
   const getBudgetTransactions = useBudgetStore((state) => state.getBudgetTransactions);
+  const { usePlaidForActuals } = usePlaidActuals();
   const addCategory = useBudgetStore((state) => state.addCategory);
   const removeCategory = useBudgetStore((state) => state.removeCategory);
   const updateCategory = useBudgetStore((state) => state.updateCategory);
@@ -22,7 +26,31 @@ const Budgets: React.FC = () => {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  
+
+  const { transactions: plaidTransactions } = usePlaidYearTransactions(
+    usePlaidForActuals ? selectedYear : null
+  );
+
+  const resolvedBudgetStatus = useMemo(
+    () => (budgetId: string) => {
+      const b = budgets.find((x) => x.id === budgetId);
+      if (!b) return getBudgetStatus(budgetId, selectedYear, selectedMonth);
+      if (usePlaidForActuals) {
+        return getPlaidBudgetStatus(plaidTransactions, b, categories, selectedYear, selectedMonth);
+      }
+      return getBudgetStatus(budgetId, selectedYear, selectedMonth);
+    },
+    [
+      budgets,
+      categories,
+      getBudgetStatus,
+      plaidTransactions,
+      usePlaidForActuals,
+      selectedYear,
+      selectedMonth,
+    ]
+  );
+
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedPeriod, setSelectedPeriod] = useState<'all' | 'weekly' | 'monthly' | 'yearly'>('all');
@@ -70,7 +98,7 @@ const Budgets: React.FC = () => {
       
       // Status filter - need to check budget status
       if (selectedStatus !== 'all') {
-        const status = getBudgetStatus(b.id, selectedYear, selectedMonth);
+        const status = resolvedBudgetStatus(b.id);
         const isOverBudget = status.percentage > 100;
         const isAtRisk = status.percentage > 80 && status.percentage <= 100;
         const isOnTrack = status.percentage <= 80;
@@ -82,7 +110,7 @@ const Budgets: React.FC = () => {
       
       return true;
     });
-  }, [yearMonthFilteredBudgets, selectedCategory, selectedPeriod, selectedStatus, selectedYear, selectedMonth, getBudgetStatus]);
+  }, [yearMonthFilteredBudgets, selectedCategory, selectedPeriod, selectedStatus, selectedYear, selectedMonth, resolvedBudgetStatus]);
   
   const handleAddBudget = () => {
     const amount = parseFloat(newBudgetAmount);
@@ -214,23 +242,23 @@ const Budgets: React.FC = () => {
 
   // Calculate summary statistics
   const totalLimit = currentBudgets.reduce((sum, budget) => {
-    const status = getBudgetStatus(budget.id, selectedYear, selectedMonth);
+    const status = resolvedBudgetStatus(budget.id);
     return sum + status.limit;
   }, 0);
   
   const totalSpent = currentBudgets.reduce((sum, budget) => {
-    const status = getBudgetStatus(budget.id, selectedYear, selectedMonth);
+    const status = resolvedBudgetStatus(budget.id);
     return sum + status.spent;
   }, 0);
   
   const totalRemaining = currentBudgets.reduce((sum, budget) => {
-    const status = getBudgetStatus(budget.id, selectedYear, selectedMonth);
+    const status = resolvedBudgetStatus(budget.id);
     return sum + status.remaining;
   }, 0);
   
   const averageUsage = currentBudgets.length > 0
     ? currentBudgets.reduce((sum, budget) => {
-        const status = getBudgetStatus(budget.id, selectedYear, selectedMonth);
+        const status = resolvedBudgetStatus(budget.id);
         return sum + status.percentage;
       }, 0) / currentBudgets.length
     : 0;
@@ -419,7 +447,7 @@ const Budgets: React.FC = () => {
         {currentBudgets.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentBudgets.map((budget) => {
-              const status = getBudgetStatus(budget.id, selectedYear, selectedMonth);
+              const status = resolvedBudgetStatus(budget.id);
               const category = categories.find(c => c.id === budget.categoryId);
               const isOverBudget = status.percentage > 100;
               const isWarning = status.percentage > 80 && status.percentage <= 100;
@@ -745,7 +773,17 @@ const Budgets: React.FC = () => {
           const dateLabel = reportBudget?.period === 'yearly'
             ? `${selectedYear}`
             : `${format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy')}`;
-          const transactions = reportBudget ? getBudgetTransactions(reportBudgetId, selectedYear, selectedMonth) : [];
+          const budgetTxList = reportBudget
+            ? usePlaidForActuals
+              ? getPlaidBudgetTransactionsAsStoreShape(
+                  plaidTransactions,
+                  reportBudget,
+                  categories,
+                  selectedYear,
+                  selectedMonth
+                )
+              : getBudgetTransactions(reportBudgetId, selectedYear, selectedMonth)
+            : [];
           return (
             <div
               className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
@@ -762,11 +800,11 @@ const Budgets: React.FC = () => {
                   <p className="text-sm text-text-muted mt-1">Transactions in this budget</p>
                 </div>
                 <div className="flex-1 overflow-y-auto p-6">
-                  {transactions.length === 0 ? (
+                  {budgetTxList.length === 0 ? (
                     <p className="text-text-muted text-center py-8">No transactions in this period.</p>
                   ) : (
                     <ul className="space-y-3">
-                      {transactions.map(({ date, transaction }) => (
+                      {budgetTxList.map(({ date, transaction }) => (
                         <li
                           key={`${date}-${transaction.id}`}
                           className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-2 border border-border-subtle"
@@ -775,7 +813,14 @@ const Budgets: React.FC = () => {
                             <p className="font-medium text-text-primary truncate">{transaction.description || 'No description'}</p>
                             <p className="text-xs text-text-muted">{format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}</p>
                           </div>
-                          <span className="text-spending-red font-semibold tabular-nums ml-2 shrink-0">{formatCurrency(transaction.amount)}</span>
+                          <span
+                            className={`font-semibold tabular-nums ml-2 shrink-0 ${
+                              transaction.type === 'income' ? 'text-income-green' : 'text-spending-red'
+                            }`}
+                          >
+                            {transaction.type === 'income' ? '+' : ''}
+                            {formatCurrency(transaction.amount)}
+                          </span>
                         </li>
                       ))}
                     </ul>

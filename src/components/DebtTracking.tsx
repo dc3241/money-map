@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import { format, differenceInDays, addMonths } from 'date-fns';
 import type { Debt } from '../types';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidLiabilitiesFirestore } from '../hooks/usePlaidLiabilitiesFirestore';
+import { plaidLiabilitiesToRows } from '../utils/plaidLiabilitiesFlatten';
 
 // Debt type icon mapping
 const getDebtIcon = (type: string): string => {
@@ -32,6 +35,13 @@ const getDaysUntilDue = (dueDate?: number): { text: string; urgency: 'low' | 'me
 };
 
 const DebtTracking: React.FC = () => {
+  const { usePlaidForActuals } = usePlaidActuals();
+  const { data: plaidLiab, loading: plaidLiabLoading } = usePlaidLiabilitiesFirestore();
+  const plaidLiabilityRows = useMemo(
+    () => plaidLiabilitiesToRows(plaidLiab.liabilities, plaidLiab.accounts),
+    [plaidLiab.liabilities, plaidLiab.accounts]
+  );
+
   const debts = useBudgetStore((state) => state.debts);
   const debtPayments = useBudgetStore((state) => state.debtPayments);
   const accounts = useBudgetStore((state) => state.accounts);
@@ -182,7 +192,11 @@ const DebtTracking: React.FC = () => {
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Debt Tracking
               </h1>
-              <p className="text-text-muted text-sm">Monitor and manage your debt payments</p>
+              <p className="text-text-muted text-sm">
+                Monitor and manage your debt payments
+                {usePlaidForActuals &&
+                  ' — bank-reported balances appear below when Plaid Liabilities is enabled for your institution.'}
+              </p>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
@@ -192,6 +206,63 @@ const DebtTracking: React.FC = () => {
               <span>Add Debt</span>
             </button>
           </div>
+
+          {usePlaidForActuals && (
+            <div className="mb-8 bg-surface-1 border border-border-subtle rounded-xl p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-2">
+                From your bank (Plaid)
+              </h2>
+              <p className="text-text-muted text-sm mb-4">
+                Refresh on the Accounts page after linking to sync liabilities. Use your manual debts
+                for payoff strategy and history; this table is read-only from the bank.
+              </p>
+              {plaidLiabLoading && (
+                <p className="text-text-muted text-sm">Loading liability snapshot…</p>
+              )}
+              {plaidLiab.error && !plaidLiabLoading && (
+                <p className="text-amber text-sm rounded-lg bg-amber/10 border border-amber/30 px-3 py-2">
+                  Liabilities are not available for this connection yet ({plaidLiab.error}).
+                </p>
+              )}
+              {!plaidLiabLoading && !plaidLiab.error && plaidLiabilityRows.length === 0 && (
+                <p className="text-text-muted text-sm">
+                  No liability data synced yet. Run a refresh from Accounts (pulls recurring + liabilities).
+                </p>
+              )}
+              {plaidLiabilityRows.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-text-muted text-xs uppercase tracking-widest border-b border-border-subtle">
+                        <th className="py-2 pr-2">Account</th>
+                        <th className="py-2 pr-2">Type</th>
+                        <th className="py-2 pr-2">Balance</th>
+                        <th className="py-2 pr-2">Min payment</th>
+                        <th className="py-2">APR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plaidLiabilityRows.map((row) => (
+                        <tr key={`${row.kind}-${row.accountId}`} className="border-b border-border-subtle/80">
+                          <td className="py-2 pr-2 text-text-primary font-medium">{row.name}</td>
+                          <td className="py-2 pr-2 text-text-secondary">{row.kind}</td>
+                          <td className="py-2 pr-2 tabular-nums text-spending-red font-medium">
+                            {row.balance != null ? formatCurrency(row.balance) : '—'}
+                          </td>
+                          <td className="py-2 pr-2 tabular-nums text-text-secondary">
+                            {row.minPayment != null ? formatCurrency(row.minPayment) : '—'}
+                          </td>
+                          <td className="py-2 tabular-nums text-text-muted">
+                            {row.aprPercent != null ? `${row.aprPercent.toFixed(2)}%` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Summary Cards */}
           {debts.length > 0 && (

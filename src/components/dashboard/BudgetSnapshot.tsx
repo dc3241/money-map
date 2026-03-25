@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import { useBudgetStore } from '../../store/useBudgetStore';
 import { format } from 'date-fns';
+import { usePlaidActuals } from '../../context/PlaidActualsContext';
+import { usePlaidYearTransactions } from '../../hooks/usePlaidYearTransactions';
+import { getPlaidBudgetStatus } from '../../utils/plaidBudget';
 
 interface BudgetSnapshotProps {
   year: number;
@@ -12,6 +15,22 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
   const budgets = useBudgetStore((state) => state.budgets);
   const categories = useBudgetStore((state) => state.categories);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
+  const { usePlaidForActuals } = usePlaidActuals();
+  const { transactions: plaidYearTxns } = usePlaidYearTransactions(
+    usePlaidForActuals ? year : null
+  );
+
+  const resolvedStatus = useMemo(
+    () => (budgetId: string) => {
+      const b = budgets.find((x) => x.id === budgetId);
+      if (!b) return getBudgetStatus(budgetId, year, month);
+      if (usePlaidForActuals) {
+        return getPlaidBudgetStatus(plaidYearTxns, b, categories, year, month);
+      }
+      return getBudgetStatus(budgetId, year, month);
+    },
+    [budgets, categories, getBudgetStatus, plaidYearTxns, usePlaidForActuals, year, month]
+  );
 
   const monthBudgets = useMemo(() =>
     budgets.filter(
@@ -26,19 +45,19 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
     let limit = 0;
     let spent = 0;
     monthBudgets.forEach((b) => {
-      const status = getBudgetStatus(b.id, year, month);
+      const status = resolvedStatus(b.id);
       limit += status.limit;
       spent += status.spent;
     });
     const pct = limit > 0 ? (spent / limit) * 100 : 0;
     return { totalLimit: limit, totalSpent: spent, percentage: pct };
-  }, [monthBudgets, getBudgetStatus, year, month]);
+  }, [monthBudgets, resolvedStatus]);
 
   const categoryLines = useMemo(() => {
     return monthBudgets
       .map((b) => {
         const cat = categories.find((c) => c.id === b.categoryId);
-        const status = getBudgetStatus(b.id, year, month);
+        const status = resolvedStatus(b.id);
         return {
           name: cat?.name ?? 'Unknown',
           spent: status.spent,
@@ -48,7 +67,7 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
       })
       .filter((l) => l.limit > 0)
       .slice(0, 5);
-  }, [monthBudgets, categories, getBudgetStatus, year, month]);
+  }, [monthBudgets, categories, resolvedStatus]);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);

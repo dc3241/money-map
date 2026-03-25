@@ -3,6 +3,8 @@ import { format, addDays, subDays } from 'date-fns';
 import { getWeekGrid } from '../../utils/dateUtils';
 import WeekDayBox from '../WeekDayBox';
 import DayEditModal from '../DayEditModal';
+import DayDetailReadOnly from '../DayDetailReadOnly';
+import { usePlaidActuals } from '../../context/PlaidActualsContext';
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -12,6 +14,7 @@ interface DashboardWeeklyViewProps {
 }
 
 const DashboardWeeklyView: React.FC<DashboardWeeklyViewProps> = ({ currentDate, onDateChange }) => {
+  const { usePlaidForActuals } = usePlaidActuals();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [mobileCurrentDay, setMobileCurrentDay] = useState<Date>(currentDate);
 
@@ -82,7 +85,7 @@ const DashboardWeeklyView: React.FC<DashboardWeeklyViewProps> = ({ currentDate, 
           </div>
         </div>
         {/* Desktop: 7 days */}
-        <div className="hidden md:grid grid-cols-7 gap-2 md:gap-3 h-full">
+        <div className="hidden md:grid gap-2 md:gap-3 h-full" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
           {weekDays.map((day, index) => (
             <div key={day} className="flex flex-col min-h-0">
               <div className="text-center text-xs uppercase tracking-widest font-medium text-text-muted py-1">
@@ -99,7 +102,10 @@ const DashboardWeeklyView: React.FC<DashboardWeeklyViewProps> = ({ currentDate, 
           ))}
         </div>
       </div>
-      {selectedDate && (
+      {selectedDate && usePlaidForActuals && (
+        <DayDetailReadOnly date={selectedDate} onClose={() => setSelectedDate(null)} />
+      )}
+      {selectedDate && !usePlaidForActuals && (
         <DayEditModal date={selectedDate} onClose={() => setSelectedDate(null)} />
       )}
     </div>

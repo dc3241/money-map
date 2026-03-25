@@ -1,5 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
+import { usePlaidActuals } from '../context/PlaidActualsContext';
+import { usePlaidYearTransactions } from '../hooks/usePlaidYearTransactions';
+import {
+  plaidAnnualTotal,
+  plaidMonthlyTotal,
+  plaidTopIncomeSources,
+  plaidTopSpendingMerchants,
+  yearsFromPlaidTransactions,
+} from '../utils/plaidAggregates';
 import { format, startOfDay, parseISO } from 'date-fns';
 import {
   BarChart,
@@ -22,19 +31,37 @@ const Reporting: React.FC = () => {
   const accounts = useBudgetStore((state) => state.accounts);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const { usePlaidForActuals } = usePlaidActuals();
+  const {
+    transactions: plaidYearTransactions,
+    loading: plaidYearLoading,
+    error: plaidYearError,
+  } = usePlaidYearTransactions(usePlaidForActuals ? selectedYear : null);
 
-  // Get available years from data
+  const plaidReportTransactions = usePlaidForActuals ? plaidYearTransactions : [];
+
+  // Get available years from manual days + Plaid transaction dates (+ recent band when linked)
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     Object.keys(days).forEach((dateKey) => {
       const [year] = dateKey.split('-').map(Number);
       years.add(year);
     });
-    return Array.from(years).sort((a, b) => b - a);
-  }, [days]);
+    const fromDays = Array.from(years);
+    const merged = yearsFromPlaidTransactions(plaidYearTransactions, fromDays);
+    if (usePlaidForActuals) {
+      const cy = new Date().getFullYear();
+      for (let y = cy; y >= cy - 10; y--) merged.push(y);
+    }
+    const uniq = Array.from(new Set(merged)).sort((a, b) => b - a);
+    return uniq.length > 0 ? uniq : [new Date().getFullYear()];
+  }, [days, plaidYearTransactions, usePlaidForActuals, selectedYear]);
 
   // Calculate annual totals
   const annualTotals = useMemo(() => {
+    if (usePlaidForActuals) {
+      return plaidAnnualTotal(plaidReportTransactions, selectedYear);
+    }
     let income = 0;
     let spending = 0;
     const today = startOfDay(new Date());
@@ -42,16 +69,13 @@ const Reporting: React.FC = () => {
     Object.keys(days).forEach((dateKey) => {
       const [year] = dateKey.split('-').map(Number);
       if (year === selectedYear) {
-        // Parse the date and compare to today
         const dayDate = startOfDay(parseISO(dateKey));
-        
-        // Only include transactions on or before today
+
         if (dayDate.getTime() <= today.getTime()) {
           const dayData = days[dateKey];
           if (dayData) {
             income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
             const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-            // Only count transfers to credit cards as spending (paying down debt)
             const transfers = (dayData.transfers || []).reduce((sum, t) => {
               if (t.transferToAccountId) {
                 const toAccount = accounts.find((a) => a.id === t.transferToAccountId);
@@ -72,13 +96,15 @@ const Reporting: React.FC = () => {
       spending,
       profit: income - spending,
     };
-  }, [days, selectedYear, accounts]);
+  }, [usePlaidForActuals, plaidReportTransactions, days, selectedYear, accounts]);
 
   // Calculate monthly breakdown
   const monthlyBreakdown = useMemo(() => {
     const months = [];
     for (let month = 1; month <= 12; month++) {
-      const total = getMonthlyTotal(selectedYear, month);
+      const total = usePlaidForActuals
+        ? plaidMonthlyTotal(plaidReportTransactions, selectedYear, month)
+        : getMonthlyTotal(selectedYear, month);
       months.push({
         month,
         monthName: format(new Date(selectedYear, month - 1, 1), 'MMM'),
@@ -87,7 +113,7 @@ const Reporting: React.FC = () => {
       });
     }
     return months;
-  }, [getMonthlyTotal, selectedYear, days]);
+  }, [usePlaidForActuals, plaidReportTransactions, getMonthlyTotal, selectedYear, days]);
 
   // Calculate averages
   const averages = useMemo(() => {
@@ -107,8 +133,16 @@ const Reporting: React.FC = () => {
     return (annualTotals.profit / annualTotals.income) * 100;
   }, [annualTotals]);
 
-  // Analyze recurring vs one-time transactions
+  // Analyze recurring vs one-time transactions (manual entries only; bank sync has no recurring flags)
   const transactionAnalysis = useMemo(() => {
+    if (usePlaidForActuals) {
+      return {
+        recurringIncome: 0,
+        recurringSpending: 0,
+        oneTimeIncome: 0,
+        oneTimeSpending: 0,
+      };
+    }
     let recurringIncome = 0;
     let recurringSpending = 0;
     let oneTimeIncome = 0;
@@ -140,12 +174,14 @@ const Reporting: React.FC = () => {
       oneTimeIncome,
       oneTimeSpending,
     };
-  }, [days, selectedYear]);
+  }, [usePlaidForActuals, days, selectedYear]);
 
-  // Top spending categories (by description)
   const topSpendingCategories = useMemo(() => {
+    if (usePlaidForActuals) {
+      return plaidTopSpendingMerchants(plaidReportTransactions, selectedYear, 10);
+    }
     const categoryMap = new Map<string, number>();
-    
+
     Object.values(days).forEach((dayData) => {
       const [year] = dayData.date.split('-').map(Number);
       if (year === selectedYear) {
@@ -160,12 +196,14 @@ const Reporting: React.FC = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [days, selectedYear]);
+  }, [usePlaidForActuals, plaidReportTransactions, days, selectedYear]);
 
-  // Top income sources
   const topIncomeSources = useMemo(() => {
+    if (usePlaidForActuals) {
+      return plaidTopIncomeSources(plaidReportTransactions, selectedYear, 10);
+    }
     const sourceMap = new Map<string, number>();
-    
+
     Object.values(days).forEach((dayData) => {
       const [year] = dayData.date.split('-').map(Number);
       if (year === selectedYear) {
@@ -180,7 +218,7 @@ const Reporting: React.FC = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [days, selectedYear]);
+  }, [usePlaidForActuals, plaidReportTransactions, days, selectedYear]);
 
   // Calculate trends (month-over-month)
   const monthlyTrends = useMemo(() => {
@@ -274,6 +312,19 @@ const Reporting: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {usePlaidForActuals && plaidYearLoading && (
+          <p className="text-text-muted text-sm mb-4">
+            Loading bank transactions for {selectedYear}…
+          </p>
+        )}
+        {usePlaidForActuals && plaidYearError && (
+          <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-sm text-text-secondary">
+            Could not load the full year of transactions ({plaidYearError.message}). If this
+            persists, add a Firestore composite index for{' '}
+            <code className="text-xs">transactions.date</code> range queries or retry after a sync.
+          </div>
+        )}
 
         {/* Annual Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -480,6 +531,14 @@ const Reporting: React.FC = () => {
                 <Bar dataKey="value" fill="#34C98A" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        )}
+
+        {usePlaidForActuals && (
+          <div className="bg-surface-2 border border-border-subtle rounded-xl p-4 mb-8 text-sm text-text-secondary">
+            Recurring vs one-time splits come from your manual ledger only. For bank-linked data, use
+            the <span className="text-text-primary font-medium">Recurring</span> page for Plaid-detected
+            streams alongside this report&apos;s full-year income and spending totals.
           </div>
         )}
 

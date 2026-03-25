@@ -1,12 +1,25 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePlaidLink } from "react-plaid-link";
+import { onAuthStateChanged } from "firebase/auth";
 import {
+  auth,
   createLinkToken,
   exchangePublicToken,
   syncTransactions,
+  syncBalances,
+  syncPlaidInsights,
 } from "../config/firebase";
 
 type Status = "loading" | "ready" | "exchanging" | "success" | "error";
+
+function getCallableErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (err && typeof err === "object" && "message" in err) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string" && m.length > 0) return m;
+  }
+  return fallback;
+}
 
 export default function PlaidLink() {
   const [linkToken, setLinkToken] = useState<string | null>(null);
@@ -15,22 +28,32 @@ export default function PlaidLink() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await createLinkToken({});
-        if (!cancelled && data.linkToken) {
-          setLinkToken(data.linkToken);
-          setStatus("ready");
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load Plaid");
-          setStatus("error");
-        }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (cancelled) return;
+      if (!user) {
+        setError("You must be signed in to connect your bank.");
+        setStatus("error");
+        return;
       }
-    })();
+      (async () => {
+        if (cancelled) return;
+        try {
+          const { data } = await createLinkToken({});
+          if (!cancelled && data.linkToken) {
+            setLinkToken(data.linkToken);
+            setStatus("ready");
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(getCallableErrorMessage(err, "Failed to load Plaid"));
+            setStatus("error");
+          }
+        }
+      })();
+    });
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -40,9 +63,19 @@ export default function PlaidLink() {
     try {
       await exchangePublicToken({ publicToken });
       await syncTransactions({});
+      try {
+        await syncBalances({});
+      } catch {
+        /* non-fatal */
+      }
+      try {
+        await syncPlaidInsights({});
+      } catch {
+        /* recurring/liabilities may be unavailable for some items */
+      }
       setStatus("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect bank");
+      setError(getCallableErrorMessage(err, "Failed to connect bank"));
       setStatus("ready");
     }
   }, []);
