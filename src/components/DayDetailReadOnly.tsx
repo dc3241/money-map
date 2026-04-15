@@ -5,6 +5,7 @@ import { usePlaidRangeTransactionsState } from "../context/PlaidRangeTransaction
 import {
   plaidDailyTotal,
   plaidIncomeOnDate,
+  plaidExcludedInflowOnDate,
   plaidSpendingOnDate,
   formatPlaidIncomeLabel,
   formatPlaidSpendingLabel,
@@ -20,11 +21,16 @@ interface DayDetailReadOnlyProps {
  */
 const DayDetailReadOnly: React.FC<DayDetailReadOnlyProps> = ({ date, onClose }) => {
   const ctx = usePlaidActualsOptional();
-  const { transactions } = usePlaidRangeTransactionsState();
+  const { transactions, accountTypeByAccountId } = usePlaidRangeTransactionsState();
   if (!ctx?.usePlaidForActuals) return null;
   const dateKey = format(date, "yyyy-MM-dd");
-  const totals = plaidDailyTotal(transactions, dateKey);
-  const incomeList = plaidIncomeOnDate(transactions, dateKey);
+  const totals = plaidDailyTotal(transactions, dateKey, accountTypeByAccountId);
+  const incomeList = plaidIncomeOnDate(transactions, dateKey, accountTypeByAccountId);
+  const excludedInflow = plaidExcludedInflowOnDate(
+    transactions,
+    dateKey,
+    accountTypeByAccountId
+  );
   const spendingList = plaidSpendingOnDate(transactions, dateKey);
 
   const formatCurrency = (amount: number) =>
@@ -103,6 +109,29 @@ const DayDetailReadOnly: React.FC<DayDetailReadOnlyProps> = ({ date, onClose }) 
             </ul>
           </div>
         </div>
+
+        {excludedInflow.length > 0 && (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              Payments & internal transfers (not counted as income)
+            </h3>
+            <ul className="space-y-2 max-h-36 overflow-y-auto">
+              {excludedInflow.map((tx) => (
+                <li
+                  key={tx.transaction_id}
+                  className="text-sm flex justify-between gap-2 border-b border-gray-200 pb-1 last:border-0"
+                >
+                  <span className="text-gray-600 truncate">
+                    {formatPlaidIncomeLabel(tx)}
+                  </span>
+                  <span className="tabular-nums text-gray-700 flex-shrink-0">
+                    {formatCurrency(Math.abs(tx.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div
           className={`rounded-lg p-4 text-center border ${

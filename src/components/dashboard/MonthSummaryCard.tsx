@@ -12,12 +12,20 @@ interface MonthSummaryCardProps {
 
 const MonthSummaryCard: React.FC<MonthSummaryCardProps> = ({ year, month }) => {
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
-  const { transactions } = usePlaidRangeTransactionsState();
+  const { transactions, accountTypeByAccountId } = usePlaidRangeTransactionsState();
   const { usePlaidForActuals } = usePlaidActuals();
   const monthly = useMemo(() => {
-    if (usePlaidForActuals) return plaidMonthlyTotal(transactions, year, month);
+    if (usePlaidForActuals)
+      return plaidMonthlyTotal(transactions, year, month, accountTypeByAccountId);
     return getMonthlyTotal(year, month);
-  }, [usePlaidForActuals, transactions, getMonthlyTotal, year, month]);
+  }, [
+    usePlaidForActuals,
+    transactions,
+    accountTypeByAccountId,
+    getMonthlyTotal,
+    year,
+    month,
+  ]);
 
   const income = monthly.income;
   const spending = monthly.spending;

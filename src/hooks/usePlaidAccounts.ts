@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { PlaidAccountTypeMap } from "../utils/plaidAggregates";
 import {
   collection,
   onSnapshot,
@@ -84,4 +85,16 @@ function usePlaidAccountsInternal(uid: string | null): {
   }, [uid]);
 
   return state;
+}
+
+/** Plaid `account_id` → account `type` for cash-flow classification. */
+export function usePlaidAccountTypeMap(): PlaidAccountTypeMap {
+  const { accounts } = usePlaidAccounts();
+  return useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of accounts) {
+      if (a.account_id) m.set(a.account_id, a.type);
+    }
+    return m;
+  }, [accounts]);
 }

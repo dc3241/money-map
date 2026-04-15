@@ -19,6 +19,41 @@ function streamAmount(s: PlaidTransactionStreamDoc): number {
   return Math.abs(Number(a) || 0);
 }
 
+/**
+ * Converts one stream payment (avg/last) to an approximate monthly total using Plaid
+ * `RecurringFrequency`-style values. Unknown frequencies assume monthly (×1).
+ */
+export function monthlyMultiplierForStreamFrequency(
+  frequency: string | null | undefined
+): number {
+  const f = (frequency ?? "")
+    .toUpperCase()
+    .trim()
+    .replace(/[-\s]+/g, "_");
+  switch (f) {
+    case "DAILY":
+      return 365.25 / 12;
+    case "WEEKLY":
+      return 52 / 12;
+    case "BIWEEKLY":
+      return 26 / 12;
+    case "SEMI_MONTHLY":
+      return 2;
+    case "MONTHLY":
+      return 1;
+    case "QUARTERLY":
+      return 4 / 12;
+    case "ANNUALLY":
+    case "ANNUAL":
+      return 1 / 12;
+    case "UNKNOWN":
+    case "NULL":
+    case "DYNAMIC":
+    default:
+      return 1;
+  }
+}
+
 function nextDateFromStream(s: PlaidTransactionStreamDoc): Date | null {
   if (s.predicted_next_date) {
     const d = parseISO(s.predicted_next_date + "T12:00:00");
@@ -65,7 +100,7 @@ export function upcomingFromPlaidStreams(
   return items.slice(0, take);
 }
 
-/** Approximate monthly income/spend from stream averages (for Recurring page summary). */
+/** Approximate monthly income/spend from stream averages × frequency (Recurring page summary). */
 export function estimateMonthlyFromStreams(
   inflow: PlaidTransactionStreamDoc[],
   outflow: PlaidTransactionStreamDoc[]
@@ -73,10 +108,12 @@ export function estimateMonthlyFromStreams(
   let income = 0;
   let expense = 0;
   for (const s of inflow) {
-    income += streamAmount(s);
+    income +=
+      streamAmount(s) * monthlyMultiplierForStreamFrequency(s.frequency);
   }
   for (const s of outflow) {
-    expense += streamAmount(s);
+    expense +=
+      streamAmount(s) * monthlyMultiplierForStreamFrequency(s.frequency);
   }
   return { income, expense };
 }

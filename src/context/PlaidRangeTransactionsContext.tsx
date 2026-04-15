@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useMemo } from "react";
 import { usePlaidActuals } from "./PlaidActualsContext";
+import { usePlaidAccountTypeMap } from "../hooks/usePlaidAccounts";
 import { usePlaidTransactionsInRange } from "../hooks/usePlaidTransactionsInRange";
+import type { PlaidAccountTypeMap } from "../utils/plaidAggregates";
 import { dashboardPlaidRange } from "../utils/plaidVisibleRange";
 
 export interface PlaidRangeTransactionsState {
@@ -8,7 +10,11 @@ export interface PlaidRangeTransactionsState {
   loading: boolean;
   error: Error | null;
   range: { start: string; end: string } | null;
+  /** Used to exclude credit/loan inflows from dashboard income. */
+  accountTypeByAccountId: PlaidAccountTypeMap;
 }
+
+const EMPTY_MAP: PlaidAccountTypeMap = new Map();
 
 const PlaidRangeTransactionsContext = createContext<PlaidRangeTransactionsState | null>(
   null
@@ -23,6 +29,7 @@ export function PlaidRangeTransactionsProvider({
 }) {
   const { usePlaidForActuals } = usePlaidActuals();
   const range = useMemo(() => dashboardPlaidRange(anchorDate), [anchorDate]);
+  const accountTypeByAccountId = usePlaidAccountTypeMap();
 
   const { transactions, loading, error } = usePlaidTransactionsInRange(
     usePlaidForActuals ? range.start : null,
@@ -35,8 +42,16 @@ export function PlaidRangeTransactionsProvider({
       loading,
       error,
       range: usePlaidForActuals ? range : null,
+      accountTypeByAccountId: usePlaidForActuals ? accountTypeByAccountId : EMPTY_MAP,
     }),
-    [transactions, loading, error, range, usePlaidForActuals]
+    [
+      transactions,
+      loading,
+      error,
+      range,
+      usePlaidForActuals,
+      accountTypeByAccountId,
+    ]
   );
 
   return (
@@ -54,6 +69,7 @@ export function usePlaidRangeTransactionsState(): PlaidRangeTransactionsState {
       loading: false,
       error: null,
       range: null,
+      accountTypeByAccountId: EMPTY_MAP,
     };
   }
   return ctx;

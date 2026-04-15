@@ -75,7 +75,7 @@ export default function Home() {
                   <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2"/>
                 </g>
               </svg>
-              <span className="text-2xl font-semibold text-text-primary">Money Maps</span>
+              <span className="text-2xl font-semibold font-display tracking-tight text-text-primary">Money Maps</span>
             </div>
             {user ? (
               <Link
@@ -107,7 +107,7 @@ export default function Home() {
               100% Free
             </span>
           </div>
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-semibold text-text-primary tracking-tight mb-6 leading-tight font-serif">
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-display font-bold text-text-primary tracking-[-0.02em] mb-6 leading-tight">
             Take Control of Your
             <span className="block text-accent mt-2">Financial Future</span>
           </h1>
@@ -119,13 +119,13 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
               <Link
                 to="/login"
-                className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
+                className="px-6 py-3 bg-accent text-white rounded-lg font-medium hover:opacity-90 transition-all duration-200"
               >
                 Get Started Free
               </Link>
               <a
                 href="#features"
-                className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
+                className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-lg font-medium hover:border-border-hover hover:text-text-primary transition-all duration-200"
               >
                 Learn More
               </a>
@@ -149,7 +149,7 @@ export default function Home() {
       {/* Free Banner */}
       <section className="bg-bg-app py-12 mb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-semibold text-text-primary font-serif mb-4">
+          <h2 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-text-primary mb-4">
             Completely Free. No Hidden Costs.
           </h2>
           <p className="text-xl text-text-secondary mb-6 max-w-2xl mx-auto">
@@ -158,7 +158,7 @@ export default function Home() {
           {!user && (
             <Link
               to="/login"
-              className="inline-block px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
+              className="inline-block px-6 py-3 bg-accent text-white rounded-lg font-medium hover:opacity-90 transition-all duration-200"
             >
               Start Free Today
             </Link>
@@ -175,7 +175,7 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <h2 className="text-3xl md:text-4xl font-semibold text-text-primary font-serif mb-4">
+            <h2 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-text-primary mb-4">
               Your Privacy is Our Priority
             </h2>
             <p className="text-xl text-text-secondary max-w-3xl mx-auto">
@@ -216,7 +216,7 @@ export default function Home() {
       {/* Features Section */}
       <section id="features" className="bg-bg-app max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-semibold text-text-primary font-serif mb-4">
+          <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight text-text-primary mb-4">
             Everything You Need to Manage Your Money
           </h2>
           <p className="text-xl text-text-secondary max-w-2xl mx-auto">
@@ -242,7 +242,7 @@ export default function Home() {
       <section className="bg-surface-1 py-20 mb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-semibold text-text-primary font-serif mb-4">
+          <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight text-text-primary mb-4">
               See It In Action
             </h2>
             <p className="text-xl text-text-secondary max-w-2xl mx-auto">
@@ -396,8 +396,8 @@ export default function Home() {
       {/* CTA Section */}
       {!user && (
         <section className="bg-bg-app max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="bg-surface-1 border border-border-subtle rounded-xl p-12 md:p-16 text-center">
-            <h2 className="text-4xl md:text-5xl font-semibold text-text-primary font-serif mb-6">
+          <div className="bg-surface-1 border border-border-subtle rounded-lg p-12 md:p-16 text-center">
+            <h2 className="text-4xl md:text-5xl font-display font-semibold tracking-tight text-text-primary mb-6">
               Ready to Take Control?
             </h2>
             <p className="text-xl text-text-secondary mb-8 max-w-2xl mx-auto">
@@ -406,7 +406,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/login"
-                className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200"
+                className="px-6 py-3 bg-accent text-white rounded-lg font-medium hover:opacity-90 transition-all duration-200"
               >
                 Create Free Account
               </Link>
@@ -437,7 +437,7 @@ export default function Home() {
                   <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2"/>
                 </g>
               </svg>
-              <span className="text-xl font-semibold text-text-primary">Money Maps</span>
+              <span className="text-xl font-semibold font-display tracking-tight text-text-primary">Money Maps</span>
             </div>
             <p className="text-text-muted text-sm">
               © {new Date().getFullYear()} Money Maps. 100% Free.

@@ -4,6 +4,7 @@ import { useBudgetStore } from '../../store/useBudgetStore';
 import type { Transaction } from '../../types';
 import { usePlaidActuals } from '../../context/PlaidActualsContext';
 import { usePlaidRangeTransactionsState } from '../../context/PlaidRangeTransactionsContext';
+import { plaidRecentRowKind } from '../../utils/plaidAggregates';
 
 const RECENT_DAYS = 14;
 
@@ -19,7 +20,8 @@ interface Props {
 }
 
 const RecentTransactions: React.FC<Props> = ({ limit }) => {
-  const { transactions: plaidTransactions } = usePlaidRangeTransactionsState();
+  const { transactions: plaidTransactions, accountTypeByAccountId } =
+    usePlaidRangeTransactionsState();
   const { usePlaidForActuals } = usePlaidActuals();
   const days = useBudgetStore((state) => state.days);
   const categories = useBudgetStore((state) => state.categories);
@@ -32,12 +34,12 @@ const RecentTransactions: React.FC<Props> = ({ limit }) => {
     return sorted.slice(0, cap).map((tx) => ({
       date: tx.date,
       dateObj: parseISO(tx.date),
-      type: (tx.amount <= 0 ? 'income' : 'spending') as 'income' | 'spending',
+      kind: plaidRecentRowKind(tx, accountTypeByAccountId),
       amount: Math.abs(tx.amount),
       name: tx.merchant_name ?? tx.name ?? 'Transaction',
       category: tx.category_primary ?? (Array.isArray(tx.category) ? tx.category[0] : null),
     }));
-  }, [plaidTransactions, limit]);
+  }, [plaidTransactions, limit, accountTypeByAccountId]);
 
   const usePlaid = usePlaidForActuals;
 
@@ -106,10 +108,17 @@ const RecentTransactions: React.FC<Props> = ({ limit }) => {
                       )}
                     </div>
                   </div>
-                  <span className={`tabular-nums font-medium flex-shrink-0 text-sm ${
-                    item.type === 'income' ? 'text-income-green' : 'text-spending-red'
-                  }`}>
-                    {item.type === 'income' ? '+' : ''}{formatCurrency(item.amount)}
+                  <span
+                    className={`tabular-nums font-medium flex-shrink-0 text-sm ${
+                      item.kind === 'income'
+                        ? 'text-income-green'
+                        : item.kind === 'spending'
+                          ? 'text-spending-red'
+                          : 'text-text-secondary'
+                    }`}
+                  >
+                    {item.kind === 'income' ? '+' : item.kind === 'spending' ? '' : '↔ '}
+                    {formatCurrency(item.amount)}
                   </span>
                 </li>
               );

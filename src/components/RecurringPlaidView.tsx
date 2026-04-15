@@ -1,18 +1,248 @@
-import React, { useMemo } from "react";
-import { format } from "date-fns";
+import React, { useMemo, useState } from "react";
+import { format, subMonths } from "date-fns";
 import { usePlaidActuals } from "../context/PlaidActualsContext";
 import { usePlaidTransactionsInRange } from "../hooks/usePlaidTransactionsInRange";
 import { calendarMonthPlaidRange } from "../utils/plaidVisibleRange";
 import { usePlaidRecurringFirestore } from "../hooks/usePlaidRecurringFirestore";
+import { usePlaidAccountTypeMap } from "../hooks/usePlaidAccounts";
 import { plaidMonthlyTotal } from "../utils/plaidAggregates";
-import { estimateMonthlyFromStreams } from "../utils/plaidStreamUtils";
+import {
+  buildStreamTransactionIdSet,
+  estimateMonthlyFromStreams,
+} from "../utils/plaidStreamUtils";
+import { usePlaidRecurringReview } from "../hooks/usePlaidRecurringReview";
 import type { PlaidTransactionStreamDoc } from "../hooks/usePlaidRecurringFirestore";
+import type { PlaidTransaction } from "../hooks/usePlaidTransactions";
+
+const REVIEW_CADENCE_OPTIONS = [
+  "weekly",
+  "biweekly",
+  "semimonthly",
+  "monthly",
+  "quarterly",
+  "annually",
+];
+
+const REVIEW_EXPENSE_CATEGORIES = [
+  "Housing",
+  "Utilities",
+  "Food & Dining",
+  "Transportation",
+  "Insurance",
+  "Healthcare",
+  "Shopping",
+  "Entertainment",
+  "Debt Payment",
+  "Subscription",
+  "Other",
+];
+
+const REVIEW_INCOME_TYPES = [
+  "Salary",
+  "Freelance",
+  "Side hustle",
+  "Bonus",
+  "Investment",
+  "Transfer",
+  "Other",
+];
 
 function streamAmt(s: PlaidTransactionStreamDoc): number {
   return Math.abs(
     Number(s.last_amount?.amount ?? s.average_amount?.amount ?? 0) || 0
   );
 }
+
+/** Soonest `predicted_next_date` first; missing dates use `last_date`, then sort last. */
+function sortOutflowsByNextDate(
+  streams: PlaidTransactionStreamDoc[]
+): PlaidTransactionStreamDoc[] {
+  return [...streams].sort((a, b) => {
+    const aKey = a.predicted_next_date || a.last_date || "";
+    const bKey = b.predicted_next_date || b.last_date || "";
+    if (!aKey && !bKey) return 0;
+    if (!aKey) return 1;
+    if (!bKey) return -1;
+    return aKey.localeCompare(bKey);
+  });
+}
+
+function recurringCandidateTransactions(
+  transactions: PlaidTransaction[],
+  streamTxIds: Set<string>,
+  reviewedTxIds: Set<string>
+): PlaidTransaction[] {
+  const sorted = [...transactions].sort((a, b) =>
+    a.date < b.date ? 1 : a.date > b.date ? -1 : 0
+  );
+  const groups = new Map<string, PlaidTransaction[]>();
+  for (const tx of sorted) {
+    if (streamTxIds.has(tx.transaction_id) || reviewedTxIds.has(tx.transaction_id)) {
+      continue;
+    }
+    if (tx.pending) continue;
+    const rawKey = (tx.merchant_name || tx.name || "").trim().toLowerCase();
+    if (!rawKey) continue;
+    const key = `${rawKey}::${tx.amount < 0 ? "in" : "out"}`;
+    const list = groups.get(key) ?? [];
+    list.push(tx);
+    groups.set(key, list);
+  }
+  const candidates: PlaidTransaction[] = [];
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    candidates.push(list[0]);
+  }
+  candidates.sort((a, b) => (a.date < b.date ? 1 : -1));
+  return candidates.slice(0, 12);
+}
+
+function formatCurrency(n: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(n);
+}
+
+type ReviewCardProps = {
+  tx: PlaidTransaction;
+  onConfirm: (input: {
+    transactionId: string;
+    kind: "income" | "expense";
+    cadence: string | null;
+    category: string | null;
+    incomeType: string | null;
+  }) => Promise<void>;
+  onNotRecurring: (transactionId: string) => Promise<void>;
+};
+
+const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
+  tx,
+  onConfirm,
+  onNotRecurring,
+}) => {
+  const defaultKind: "income" | "expense" = tx.amount < 0 ? "income" : "expense";
+  const [kind, setKind] = useState<"income" | "expense">(defaultKind);
+  const [cadence, setCadence] = useState<string>("monthly");
+  const [category, setCategory] = useState<string>("");
+  const [incomeType, setIncomeType] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  const title = tx.merchant_name || tx.name || "Transaction";
+
+  return (
+    <div className="rounded-xl border border-border-subtle bg-surface-1 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-text-primary">{title}</div>
+          <div className="text-xs text-text-muted mt-1">
+            {tx.date} · {tx.category_primary ?? "Uncategorized"}
+          </div>
+        </div>
+        <div
+          className={`text-sm font-semibold tabular-nums ${
+            defaultKind === "income" ? "text-income-green" : "text-spending-red"
+          }`}
+        >
+          {defaultKind === "income" ? "+" : "-"}
+          {formatCurrency(Math.abs(tx.amount))}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as "income" | "expense")}
+          className="rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm text-text-primary"
+          disabled={saving}
+        >
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+        </select>
+        <select
+          value={cadence}
+          onChange={(e) => setCadence(e.target.value)}
+          className="rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm text-text-primary"
+          disabled={saving}
+        >
+          {REVIEW_CADENCE_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        {kind === "expense" ? (
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm text-text-primary"
+            disabled={saving}
+          >
+            <option value="">Category (optional)</option>
+            {REVIEW_EXPENSE_CATEGORIES.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select
+            value={incomeType}
+            onChange={(e) => setIncomeType(e.target.value)}
+            className="rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm text-text-primary"
+            disabled={saving}
+          >
+            <option value="">Income type (optional)</option>
+            {REVIEW_INCOME_TYPES.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onConfirm({
+                  transactionId: tx.transaction_id,
+                  kind,
+                  cadence,
+                  category: kind === "expense" ? category || null : null,
+                  incomeType: kind === "income" ? incomeType || null : null,
+                });
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            Confirm recurring
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onNotRecurring(tx.transaction_id);
+              } finally {
+                setSaving(false);
+              }
+            }}
+            className="rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm font-medium text-text-secondary hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            Not recurring
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function StreamTable({
   title,
@@ -84,6 +314,7 @@ function StreamTable({
 
 const RecurringPlaidView: React.FC = () => {
   const { usePlaidForActuals } = usePlaidActuals();
+  const plaidAccountTypes = usePlaidAccountTypeMap();
   const now = new Date();
   const monthBounds = calendarMonthPlaidRange(now);
   const { transactions } = usePlaidTransactionsInRange(
@@ -91,12 +322,25 @@ const RecurringPlaidView: React.FC = () => {
     usePlaidForActuals ? monthBounds.end : null
   );
   const { data: rec, loading } = usePlaidRecurringFirestore();
+  const {
+    overrides,
+    loading: reviewLoading,
+    error: reviewError,
+    saveOverride,
+  } = usePlaidRecurringReview();
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
+  const reviewStart = format(subMonths(now, 3), "yyyy-MM-dd");
+  const reviewEnd = format(now, "yyyy-MM-dd");
+  const { transactions: reviewTransactions, loading: reviewTxLoading } =
+    usePlaidTransactionsInRange(
+      usePlaidForActuals ? reviewStart : null,
+      usePlaidForActuals ? reviewEnd : null
+    );
 
   const monthActual = useMemo(
-    () => plaidMonthlyTotal(transactions, y, m),
-    [transactions, y, m]
+    () => plaidMonthlyTotal(transactions, y, m, plaidAccountTypes),
+    [transactions, y, m, plaidAccountTypes]
   );
 
   const streamEst = useMemo(
@@ -104,17 +348,31 @@ const RecurringPlaidView: React.FC = () => {
     [rec.inflow_streams, rec.outflow_streams]
   );
 
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-    }).format(n);
+  const outflowsSortedByNext = useMemo(
+    () => sortOutflowsByNextDate(rec.outflow_streams),
+    [rec.outflow_streams]
+  );
+
+  const streamTxIds = useMemo(
+    () => buildStreamTransactionIdSet(rec.inflow_streams, rec.outflow_streams),
+    [rec.inflow_streams, rec.outflow_streams]
+  );
+  const reviewedTxIds = useMemo(() => new Set(Object.keys(overrides)), [overrides]);
+  const reviewCandidates = useMemo(
+    () =>
+      recurringCandidateTransactions(
+        reviewTransactions,
+        streamTxIds,
+        reviewedTxIds
+      ),
+    [reviewTransactions, streamTxIds, reviewedTxIds]
+  );
+  const reviewedCount = reviewedTxIds.size;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-bg-app">
       <h1 className="text-3xl font-semibold text-text-primary mb-2">
-        Recurring (Plaid)
+        Recurring
       </h1>
       <p className="text-text-muted text-sm mb-6 max-w-3xl">
         Streams are detected from your linked accounts. Refresh accounts on the Accounts page
@@ -128,6 +386,11 @@ const RecurringPlaidView: React.FC = () => {
       {rec.error && (
         <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-sm text-text-secondary">
           Plaid could not load recurring streams for this item. Try again after a full transaction sync.
+        </div>
+      )}
+      {reviewError && (
+        <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-3 text-sm text-text-secondary">
+          Recurring review overrides failed to load. You can still view stream insights.
         </div>
       )}
 
@@ -172,7 +435,9 @@ const RecurringPlaidView: React.FC = () => {
           <div className="text-xl font-semibold text-spending-red tabular-nums">
             {formatCurrency(streamEst.expense)}
           </div>
-          <div className="text-text-muted text-xs mt-1">Sum of stream amounts (approx.)</div>
+          <div className="text-text-muted text-xs mt-1">
+            Per-stream amount × occurrences per month (approx.)
+          </div>
         </div>
         <div className="bg-surface-2 border border-border-subtle rounded-xl p-4">
           <div className="text-text-muted text-xs uppercase tracking-widest mb-1">
@@ -180,6 +445,9 @@ const RecurringPlaidView: React.FC = () => {
           </div>
           <div className="text-xl font-semibold text-income-green tabular-nums">
             {formatCurrency(streamEst.income)}
+          </div>
+          <div className="text-text-muted text-xs mt-1">
+            Per-stream amount × occurrences per month (approx.)
           </div>
         </div>
         <div className="bg-surface-2 border border-border-subtle rounded-xl p-4">
@@ -195,13 +463,14 @@ const RecurringPlaidView: React.FC = () => {
           >
             {formatCurrency(streamEst.income - streamEst.expense)}
           </div>
+          <div className="text-text-muted text-xs mt-1">Income estimate minus expense estimate</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <StreamTable
           title="Outflows (subscriptions & bills)"
-          streams={rec.outflow_streams}
+          streams={outflowsSortedByNext}
           tone="out"
         />
         <StreamTable
@@ -209,6 +478,71 @@ const RecurringPlaidView: React.FC = () => {
           streams={rec.inflow_streams}
           tone="in"
         />
+      </div>
+
+      <div className="mt-8 rounded-xl border border-border-subtle bg-surface-1 p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-text-primary">
+              Recurring review queue
+            </h2>
+            <p className="mt-1 text-sm text-text-muted">
+              Confirm likely recurring transactions from the last 3 months to
+              improve forecasting accuracy.
+            </p>
+          </div>
+          <div className="text-xs uppercase tracking-widest text-text-muted">
+            Reviewed: {reviewedCount}
+          </div>
+        </div>
+
+        {(reviewLoading || reviewTxLoading) && (
+          <p className="mt-4 text-sm text-text-muted">Loading review candidates…</p>
+        )}
+
+        {!reviewLoading && !reviewTxLoading && reviewCandidates.length === 0 && (
+          <div className="mt-4 rounded-xl border border-dashed border-border-subtle bg-surface-2 px-4 py-5 text-sm text-text-muted">
+            No candidates right now. Sync more transactions or review newly
+            posted activity later.
+          </div>
+        )}
+
+        {reviewCandidates.length > 0 && (
+          <div className="mt-4 space-y-3">
+            {reviewCandidates.map((tx) => (
+              <ReviewCandidateCard
+                key={tx.transaction_id}
+                tx={tx}
+                onConfirm={async ({
+                  transactionId,
+                  kind,
+                  cadence,
+                  category,
+                  incomeType,
+                }) => {
+                  await saveOverride({
+                    transactionId,
+                    decision: "recurring",
+                    kind,
+                    cadence,
+                    category,
+                    incomeType,
+                  });
+                }}
+                onNotRecurring={async (transactionId) => {
+                  await saveOverride({
+                    transactionId,
+                    decision: "not_recurring",
+                    kind: null,
+                    cadence: null,
+                    category: null,
+                    incomeType: null,
+                  });
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,12 +14,16 @@ interface DayBoxProps {
 
 const DayBox: React.FC<DayBoxProps> = ({ date, isCurrentMonth, onClick, isToday = false }) => {
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
-  const { transactions } = usePlaidRangeTransactionsState();
+  const { transactions, accountTypeByAccountId } = usePlaidRangeTransactionsState();
   const { usePlaidForActuals } = usePlaidActuals();
 
   const dateKey = format(date, 'yyyy-MM-dd');
   const storeTotals = getDailyTotal(dateKey);
-  const plaidTotals = plaidDailyTotal(transactions, dateKey);
+  const plaidTotals = plaidDailyTotal(
+    transactions,
+    dateKey,
+    usePlaidForActuals ? accountTypeByAccountId : undefined
+  );
   const totals = usePlaidForActuals ? plaidTotals : storeTotals;
 
   const formatCurrency = (amount: number) => {

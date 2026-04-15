@@ -27,7 +27,8 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
 
-  const { transactions: plaidTransactions } = usePlaidRangeTransactionsState();
+  const { transactions: plaidTransactions, accountTypeByAccountId } =
+    usePlaidRangeTransactionsState();
   const { usePlaidForActuals } = usePlaidActuals();
   const getWeeklyTotal = useBudgetStore((state) => state.getWeeklyTotal);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
@@ -37,13 +38,31 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
   const month = currentDate.getMonth() + 1;
 
   const plaidWeekly = useMemo(
-    () => plaidWeeklyTotal(plaidTransactions, weekRange.start, weekRange.end),
-    [plaidTransactions, weekRange.start, weekRange.end]
+    () =>
+      plaidWeeklyTotal(
+        plaidTransactions,
+        weekRange.start,
+        weekRange.end,
+        usePlaidForActuals ? accountTypeByAccountId : undefined
+      ),
+    [
+      plaidTransactions,
+      weekRange.start,
+      weekRange.end,
+      usePlaidForActuals,
+      accountTypeByAccountId,
+    ]
   );
 
   const plaidMonthly = useMemo(
-    () => plaidMonthlyTotal(plaidTransactions, year, month),
-    [plaidTransactions, year, month]
+    () =>
+      plaidMonthlyTotal(
+        plaidTransactions,
+        year,
+        month,
+        usePlaidForActuals ? accountTypeByAccountId : undefined
+      ),
+    [plaidTransactions, year, month, usePlaidForActuals, accountTypeByAccountId]
   );
 
   const weekly = usePlaidForActuals ? plaidWeekly : getWeeklyTotal(weekRange.start, weekRange.end);

@@ -4,6 +4,7 @@ import { usePlaidActuals } from '../context/PlaidActualsContext';
 import { usePlaidTransactionsInRange } from '../hooks/usePlaidTransactionsInRange';
 import { getWeekRange } from '../utils/dateUtils';
 import { dashboardPlaidRange } from '../utils/plaidVisibleRange';
+import { usePlaidAccountTypeMap } from '../hooks/usePlaidAccounts';
 import { plaidMonthlyTotal, plaidWeeklyTotal } from '../utils/plaidAggregates';
 import { format } from 'date-fns';
 
@@ -17,6 +18,7 @@ const SummaryBar: React.FC<SummaryBarProps> = ({ currentDate }) => {
   useBudgetStore((state) => state.days);
 
   const { usePlaidForActuals } = usePlaidActuals();
+  const plaidAccountTypes = usePlaidAccountTypeMap();
   const plaidRange = useMemo(() => dashboardPlaidRange(currentDate), [currentDate]);
   const { transactions } = usePlaidTransactionsInRange(
     usePlaidForActuals ? plaidRange.start : null,
@@ -27,14 +29,35 @@ const SummaryBar: React.FC<SummaryBarProps> = ({ currentDate }) => {
   const month = currentDate.getMonth() + 1;
 
   const weekly = useMemo(() => {
-    if (usePlaidForActuals) return plaidWeeklyTotal(transactions, weekRange.start, weekRange.end);
+    if (usePlaidForActuals)
+      return plaidWeeklyTotal(
+        transactions,
+        weekRange.start,
+        weekRange.end,
+        plaidAccountTypes
+      );
     return getWeeklyTotal(weekRange.start, weekRange.end);
-  }, [usePlaidForActuals, transactions, weekRange.start, weekRange.end, getWeeklyTotal]);
+  }, [
+    usePlaidForActuals,
+    transactions,
+    weekRange.start,
+    weekRange.end,
+    plaidAccountTypes,
+    getWeeklyTotal,
+  ]);
 
   const monthly = useMemo(() => {
-    if (usePlaidForActuals) return plaidMonthlyTotal(transactions, year, month);
+    if (usePlaidForActuals)
+      return plaidMonthlyTotal(transactions, year, month, plaidAccountTypes);
     return getMonthlyTotal(year, month);
-  }, [usePlaidForActuals, transactions, year, month, getMonthlyTotal]);
+  }, [
+    usePlaidForActuals,
+    transactions,
+    year,
+    month,
+    plaidAccountTypes,
+    getMonthlyTotal,
+  ]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

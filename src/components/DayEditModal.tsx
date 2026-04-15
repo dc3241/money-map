@@ -6,6 +6,7 @@ import { usePlaidRangeTransactionsState } from '../context/PlaidRangeTransaction
 import {
   plaidDailyTotal,
   plaidIncomeOnDate,
+  plaidExcludedInflowOnDate,
   plaidSpendingOnDate,
   formatPlaidIncomeLabel,
   formatPlaidSpendingLabel,
@@ -25,7 +26,8 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   const removeTransaction = useBudgetStore((state) => state.removeTransaction);
   const updateTransaction = useBudgetStore((state) => state.updateTransaction);
   const getDailyTotal = useBudgetStore((state) => state.getDailyTotal);
-  const { transactions: plaidTransactions } = usePlaidRangeTransactionsState();
+  const { transactions: plaidTransactions, accountTypeByAccountId } =
+    usePlaidRangeTransactionsState();
   const { usePlaidForActuals } = usePlaidActuals();
 
   const categories = useBudgetStore((state) => state.categories);
@@ -41,7 +43,11 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
   // Get dayData from the subscribed days object
   const dayData = days[dateKey] || { date: dateKey, income: [], spending: [], transfers: [] };
   const storeTotals = getDailyTotal(dateKey);
-  const plaidDayTotals = plaidDailyTotal(plaidTransactions, dateKey);
+  const plaidDayTotals = plaidDailyTotal(
+    plaidTransactions,
+    dateKey,
+    usePlaidForActuals ? accountTypeByAccountId : undefined
+  );
   const manualIncome = dayData.income.reduce((s, t) => s + t.amount, 0);
   const manualSpending = (dayData.spending || []).reduce((s, t) => s + t.amount, 0);
   const totals = usePlaidForActuals
@@ -55,7 +61,16 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
       }
     : storeTotals;
 
-  const plaidIncomeList = plaidIncomeOnDate(plaidTransactions, dateKey);
+  const plaidIncomeList = plaidIncomeOnDate(
+    plaidTransactions,
+    dateKey,
+    usePlaidForActuals ? accountTypeByAccountId : undefined
+  );
+  const plaidExcludedInflowList = plaidExcludedInflowOnDate(
+    plaidTransactions,
+    dateKey,
+    usePlaidForActuals ? accountTypeByAccountId : undefined
+  );
   const plaidSpendingList = plaidSpendingOnDate(plaidTransactions, dateKey);
 
   const handleAddIncome = (amount: number, description: string, accountId?: string, categoryId?: string) => {
@@ -578,6 +593,29 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
             </div>
           </div>
         </div>
+
+        {usePlaidForActuals && plaidExcludedInflowList.length > 0 && (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              Payments & internal transfers (not counted as income)
+            </h3>
+            <ul className="space-y-2 max-h-40 overflow-y-auto">
+              {plaidExcludedInflowList.map((tx) => (
+                <li
+                  key={tx.transaction_id}
+                  className="text-sm flex justify-between gap-2 border-b border-gray-200 pb-1 last:border-0"
+                >
+                  <span className="text-gray-600 truncate">
+                    {formatPlaidIncomeLabel(tx)}
+                  </span>
+                  <span className="tabular-nums text-gray-700 flex-shrink-0">
+                    {formatCurrency(Math.abs(tx.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Daily Profit/Loss */}
         <div className={`rounded-lg p-4 text-center border border-gray-200 shadow-md bg-gray-50 ${

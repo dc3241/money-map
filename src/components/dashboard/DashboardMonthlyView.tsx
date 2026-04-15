@@ -12,6 +12,7 @@ import {
 import { useBudgetStore } from '../../store/useBudgetStore';
 import { usePlaidActuals } from '../../context/PlaidActualsContext';
 import { usePlaidTransactionsInRange } from '../../hooks/usePlaidTransactionsInRange';
+import { usePlaidAccountTypeMap } from '../../hooks/usePlaidAccounts';
 import { plaidMonthlyTotal } from '../../utils/plaidAggregates';
 import DayBox from '../DayBox';
 
@@ -33,6 +34,7 @@ interface Props {
 const DashboardMonthlyView: React.FC<Props> = ({ currentDate, onDateChange }) => {
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
   const { usePlaidForActuals } = usePlaidActuals();
+  const plaidAccountTypes = usePlaidAccountTypeMap();
 
   const currentMonthStart = startOfMonth(currentDate);
   const plaidRangeStart = format(startOfMonth(subMonths(currentMonthStart, 5)), 'yyyy-MM-dd');
@@ -58,7 +60,7 @@ const DashboardMonthlyView: React.FC<Props> = ({ currentDate, onDateChange }) =>
         const year = monthDate.getFullYear();
         const month = monthDate.getMonth() + 1;
         const monthTotals = usePlaidForActuals
-          ? plaidMonthlyTotal(transactions, year, month)
+          ? plaidMonthlyTotal(transactions, year, month, plaidAccountTypes)
           : getMonthlyTotal(year, month);
 
         return (

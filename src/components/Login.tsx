@@ -1,6 +1,25 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 
+function LogoMark({ size = 40 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <rect width="120" height="120" fill="#334155" rx="20" />
+      <g transform="translate(30, 30)">
+        <rect x="0" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2" />
+        <rect x="21" y="0" width="18" height="18" fill="#10B981" rx="2" />
+        <rect x="42" y="0" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2" />
+        <rect x="0" y="21" width="18" height="18" fill="#10B981" rx="2" />
+        <rect x="21" y="21" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2" />
+        <rect x="42" y="21" width="18" height="18" fill="#10B981" rx="2" />
+        <rect x="0" y="42" width="18" height="18" fill="#10B981" rx="2" />
+        <rect x="21" y="42" width="18" height="18" fill="rgba(16, 185, 129, 0.2)" rx="2" />
+        <rect x="42" y="42" width="18" height="18" fill="#10B981" rx="2" />
+      </g>
+    </svg>
+  );
+}
+
 export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -45,26 +64,41 @@ export default function Login() {
 
   const displayError = localError || error;
 
+  const inputClassName =
+    'w-full px-4 py-2.5 rounded-lg bg-surface-2 border border-border-subtle text-text-primary placeholder:text-text-muted ' +
+    'focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors';
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-md w-full mx-4">
-        <div className="bg-white rounded-lg shadow-xl p-8">
+    <div
+      className="min-h-screen flex items-center justify-center bg-bg-app px-4"
+      style={{
+        backgroundImage:
+          'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,127,255,0.12) 0%, transparent 70%)',
+      }}
+    >
+      <div className="max-w-md w-full">
+        <div className="bg-surface-1 border border-border-subtle rounded-lg p-8 shadow-xl shadow-black/20">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Money Maps</h1>
-            <p className="text-gray-600">
+            <div className="flex justify-center mb-4">
+              <LogoMark size={48} />
+            </div>
+            <h1 className="text-3xl font-bold font-display tracking-tight text-text-primary mb-2">
+              Money Maps
+            </h1>
+            <p className="text-text-secondary">
               {isSignUp ? 'Create your account' : 'Sign in to your account'}
             </p>
           </div>
 
           {displayError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
               {displayError}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-text-secondary mb-1">
                 Email
               </label>
               <input
@@ -72,14 +106,14 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className={inputClassName}
                 placeholder="you@example.com"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-text-secondary mb-1">
                 Password
               </label>
               <input
@@ -87,7 +121,7 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className={inputClassName}
                 placeholder="••••••••"
                 required
                 minLength={6}
@@ -97,7 +131,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-500 text-white py-2 px-4 rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full bg-accent text-white py-2.5 px-4 rounded-lg font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
             </button>
@@ -106,19 +140,20 @@ export default function Login() {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t border-border-subtle" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                <span className="px-2 bg-surface-1 text-text-muted">Or continue with</span>
               </div>
             </div>
 
             <button
+              type="button"
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="mt-4 w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="mt-4 w-full flex items-center justify-center gap-3 bg-surface-2 border border-border-subtle text-text-primary py-2.5 px-4 rounded-lg hover:bg-surface-3 hover:border-border-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-surface-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -142,12 +177,13 @@ export default function Login() {
 
           <div className="mt-6 text-center">
             <button
+              type="button"
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setLocalError('');
                 useAuthStore.getState().setError(null);
               }}
-              className="text-sm text-emerald-600 hover:text-emerald-500"
+              className="text-sm text-accent hover:text-text-primary transition-colors"
             >
               {isSignUp
                 ? 'Already have an account? Sign in'
@@ -159,4 +195,3 @@ export default function Login() {
     </div>
   );
 }
-

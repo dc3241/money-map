@@ -7,8 +7,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'sans-serif'],
-        serif: ['DM Serif Display', 'serif'],
+        sans: ['Inter', 'sans-serif'],
+        display: ['Space Grotesk', 'Inter', 'sans-serif'],
       },
       colors: {
         'bg-app': '#080D18',
