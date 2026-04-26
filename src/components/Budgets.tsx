@@ -1,9 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
-import { format } from 'date-fns';
+import { format, subMonths } from 'date-fns';
 import { usePlaidActuals } from '../context/PlaidActualsContext';
 import { usePlaidYearTransactions } from '../hooks/usePlaidYearTransactions';
+import { usePlaidTransactionsInRange } from '../hooks/usePlaidTransactionsInRange';
+import { usePlaidRecurringFirestore } from '../hooks/usePlaidRecurringFirestore';
+import { usePlaidRecurringReview } from '../hooks/usePlaidRecurringReview';
+import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
 import { getPlaidBudgetStatus, getPlaidBudgetTransactionsAsStoreShape } from '../utils/plaidBudget';
+import { buildWeeklySpendablePlanner } from '../utils/forecastPlanner';
 
 const Budgets: React.FC = () => {
   const budgets = useBudgetStore((state) => state.budgets);
@@ -13,6 +18,9 @@ const Budgets: React.FC = () => {
   const updateBudget = useBudgetStore((state) => state.updateBudget);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
   const getBudgetTransactions = useBudgetStore((state) => state.getBudgetTransactions);
+  const recurringIncome = useBudgetStore((state) => state.recurringIncome);
+  const recurringExpenses = useBudgetStore((state) => state.recurringExpenses);
+  const manualAccounts = useBudgetStore((state) => state.accounts);
   const { usePlaidForActuals } = usePlaidActuals();
   const addCategory = useBudgetStore((state) => state.addCategory);
   const removeCategory = useBudgetStore((state) => state.removeCategory);
@@ -26,9 +34,19 @@ const Budgets: React.FC = () => {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [safetyBuffer, setSafetyBuffer] = useState(100);
 
   const { transactions: plaidTransactions } = usePlaidYearTransactions(
     usePlaidForActuals ? selectedYear : null
+  );
+  const { data: plaidRecurring } = usePlaidRecurringFirestore();
+  const { overrides: recurringOverrides } = usePlaidRecurringReview();
+  const { accounts: plaidAccounts } = usePlaidAccounts();
+  const forecastRangeStart = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
+  const forecastRangeEnd = format(new Date(), 'yyyy-MM-dd');
+  const { transactions: forecastSourceTransactions } = usePlaidTransactionsInRange(
+    usePlaidForActuals ? forecastRangeStart : null,
+    usePlaidForActuals ? forecastRangeEnd : null
   );
 
   const resolvedBudgetStatus = useMemo(
@@ -262,6 +280,42 @@ const Budgets: React.FC = () => {
         return sum + status.percentage;
       }, 0) / currentBudgets.length
     : 0;
+
+  const planner = useMemo(
+    () =>
+      buildWeeklySpendablePlanner({
+        usePlaidForActuals,
+        safetyBuffer,
+        windowDays: 7,
+        manualRecurringIncome: recurringIncome,
+        manualRecurringExpenses: recurringExpenses,
+        manualAccounts,
+        plaidAccounts,
+        plaidRecurring,
+        recurringOverrides,
+        forecastSourceTransactions,
+      }),
+    [
+      usePlaidForActuals,
+      safetyBuffer,
+      recurringIncome,
+      recurringExpenses,
+      manualAccounts,
+      plaidAccounts,
+      plaidRecurring,
+      recurringOverrides,
+      forecastSourceTransactions,
+    ]
+  );
+  const hasPlannerEvents = planner.events.length > 0;
+  const plannerHasShortfall = planner.grossSpendable < 0;
+  const plannerConfidencePercent = Math.round(planner.confidence.score * 100);
+  const plannerConfidenceClass =
+    planner.confidence.label === 'High'
+      ? 'bg-income-green-dim text-income-green'
+      : planner.confidence.label === 'Medium'
+        ? 'bg-amber/10 text-amber'
+        : 'bg-spending-red-dim text-spending-red';
   
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden bg-bg-app min-h-screen w-full max-w-full min-w-0">
@@ -441,6 +495,112 @@ const Budgets: React.FC = () => {
               </div>
             </div>
           )}
+
+          <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-text-primary">Weekly Spendable Planner</h3>
+                <p className="text-text-muted text-sm mt-1">
+                  Based on expected recurring items over next 7 days ({format(new Date(`${planner.windowStart}T00:00:00`), 'MMM d')} - {format(new Date(`${planner.windowEnd}T00:00:00`), 'MMM d')}).
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-xs rounded-lg px-2 py-1 font-medium ${plannerConfidenceClass}`}>
+                  {planner.confidence.label} confidence ({plannerConfidencePercent}%)
+                </span>
+                <span className="text-xs text-text-muted">
+                  O:{planner.confidence.sourceMix.overrides} P:{planner.confidence.sourceMix.plaid} M:{planner.confidence.sourceMix.manual}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Spendable this week</div>
+                <div className={`text-2xl font-semibold tabular-nums ${planner.safeSpendable > 0 ? 'text-income-green' : 'text-text-primary'}`}>
+                  {formatCurrency(planner.safeSpendable)}
+                </div>
+              </div>
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Spendable per day</div>
+                <div className={`text-2xl font-semibold tabular-nums ${planner.dailyAllowance > 0 ? 'text-income-green' : 'text-text-primary'}`}>
+                  {formatCurrency(planner.dailyAllowance)}
+                </div>
+              </div>
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Projected income</div>
+                <div className="text-2xl font-semibold tabular-nums text-income-green">
+                  {formatCurrency(planner.projectedIncome)}
+                </div>
+              </div>
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Projected fixed expenses</div>
+                <div className="text-2xl font-semibold tabular-nums text-spending-red">
+                  {formatCurrency(planner.projectedFixedExpenses)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Starting cash</div>
+                <div className="text-lg font-semibold tabular-nums text-text-primary">
+                  {formatCurrency(planner.startingCash)}
+                </div>
+              </div>
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Gross spendable</div>
+                <div className={`text-lg font-semibold tabular-nums ${planner.grossSpendable >= 0 ? 'text-text-primary' : 'text-spending-red'}`}>
+                  {formatCurrency(planner.grossSpendable)}
+                </div>
+              </div>
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs uppercase tracking-widest text-text-muted">Safety buffer</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSafetyBuffer((prev) => Math.max(0, prev - 25))}
+                      className="px-2 py-1 rounded-lg bg-surface-3 border border-border-subtle text-text-secondary hover:text-text-primary"
+                      aria-label="Decrease safety buffer"
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSafetyBuffer((prev) => prev + 25)}
+                      className="px-2 py-1 rounded-lg bg-surface-3 border border-border-subtle text-text-secondary hover:text-text-primary"
+                      aria-label="Increase safety buffer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={safetyBuffer}
+                    onChange={(e) => setSafetyBuffer(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full pl-7 pr-3 py-2 bg-surface-3 border border-border-subtle rounded-lg text-text-primary focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {!hasPlannerEvents && (
+              <div className="mt-4 rounded-xl border border-border-subtle bg-surface-2 px-4 py-3 text-sm text-text-muted">
+                No recurring forecast data found yet. Add recurring entries (or confirm Plaid recurring streams) to improve weekly spendable guidance.
+              </div>
+            )}
+            {plannerHasShortfall && (
+              <div className="mt-4 rounded-xl border border-spending-red/40 bg-spending-red-dim px-4 py-3 text-sm text-spending-red">
+                Projected shortfall detected. Expected recurring expenses exceed available cash plus recurring income for this 7-day window.
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Budgets Grid */}
