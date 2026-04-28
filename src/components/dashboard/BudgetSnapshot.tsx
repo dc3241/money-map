@@ -4,6 +4,8 @@ import { format } from 'date-fns';
 import { usePlaidActuals } from '../../context/PlaidActualsContext';
 import { usePlaidYearTransactions } from '../../hooks/usePlaidYearTransactions';
 import { getPlaidBudgetStatus } from '../../utils/plaidBudget';
+import { deriveLegacyBudgetWindow } from '../../utils/budgetPeriods';
+import type { Budget } from '../../types';
 
 interface BudgetSnapshotProps {
   year: number;
@@ -32,13 +34,22 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
     [budgets, categories, getBudgetStatus, plaidYearTxns, usePlaidForActuals, year, month]
   );
 
+  const monthWindow = useMemo(() => {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = format(new Date(year, month, 0), 'yyyy-MM-dd');
+    return { monthStart, monthEnd };
+  }, [year, month]);
+
   const monthBudgets = useMemo(() =>
     budgets.filter(
-      (b) =>
-        (b.period === 'monthly' && b.year === year && b.month === month) ||
-        (b.period === 'yearly' && b.year === year)
+      (b) => {
+        const window = b.windowStart && b.windowEnd
+          ? { windowStart: b.windowStart, windowEnd: b.windowEnd }
+          : deriveLegacyBudgetWindow(b as Partial<Budget> & { period?: string }, year, month);
+        return window.windowEnd >= monthWindow.monthStart && window.windowStart <= monthWindow.monthEnd;
+      }
     ),
-    [budgets, year, month]
+    [budgets, year, month, monthWindow]
   );
 
   const { totalLimit, totalSpent, percentage } = useMemo(() => {

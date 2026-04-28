@@ -12,7 +12,10 @@ import {
 } from "../utils/plaidStreamUtils";
 import { usePlaidRecurringReview } from "../hooks/usePlaidRecurringReview";
 import type { PlaidTransactionStreamDoc } from "../hooks/usePlaidRecurringFirestore";
-import type { PlaidTransaction } from "../hooks/usePlaidTransactions";
+import {
+  recurringReviewCandidates,
+  type RecurringReviewCandidate,
+} from "../utils/recurringReviewCandidates";
 
 const REVIEW_CADENCE_OPTIONS = [
   "weekly",
@@ -67,36 +70,6 @@ function sortOutflowsByNextDate(
   });
 }
 
-function recurringCandidateTransactions(
-  transactions: PlaidTransaction[],
-  streamTxIds: Set<string>,
-  reviewedTxIds: Set<string>
-): PlaidTransaction[] {
-  const sorted = [...transactions].sort((a, b) =>
-    a.date < b.date ? 1 : a.date > b.date ? -1 : 0
-  );
-  const groups = new Map<string, PlaidTransaction[]>();
-  for (const tx of sorted) {
-    if (streamTxIds.has(tx.transaction_id) || reviewedTxIds.has(tx.transaction_id)) {
-      continue;
-    }
-    if (tx.pending) continue;
-    const rawKey = (tx.merchant_name || tx.name || "").trim().toLowerCase();
-    if (!rawKey) continue;
-    const key = `${rawKey}::${tx.amount < 0 ? "in" : "out"}`;
-    const list = groups.get(key) ?? [];
-    list.push(tx);
-    groups.set(key, list);
-  }
-  const candidates: PlaidTransaction[] = [];
-  for (const list of groups.values()) {
-    if (list.length < 2) continue;
-    candidates.push(list[0]);
-  }
-  candidates.sort((a, b) => (a.date < b.date ? 1 : -1));
-  return candidates.slice(0, 12);
-}
-
 function formatCurrency(n: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -106,7 +79,7 @@ function formatCurrency(n: number): string {
 }
 
 type ReviewCardProps = {
-  tx: PlaidTransaction;
+  candidate: RecurringReviewCandidate;
   onConfirm: (input: {
     transactionId: string;
     kind: "income" | "expense";
@@ -118,18 +91,26 @@ type ReviewCardProps = {
 };
 
 const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
-  tx,
+  candidate,
   onConfirm,
   onNotRecurring,
 }) => {
+  const tx = candidate.tx;
   const defaultKind: "income" | "expense" = tx.amount < 0 ? "income" : "expense";
   const [kind, setKind] = useState<"income" | "expense">(defaultKind);
   const [cadence, setCadence] = useState<string>("monthly");
   const [category, setCategory] = useState<string>("");
   const [incomeType, setIncomeType] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const title = tx.merchant_name || tx.name || "Transaction";
+  const confidenceClass =
+    candidate.confidenceLabel === "High"
+      ? "bg-income-green-dim text-income-green"
+      : candidate.confidenceLabel === "Medium"
+      ? "bg-amber/10 text-amber"
+      : "bg-spending-red-dim text-spending-red";
 
   return (
     <div className="rounded-xl border border-border-subtle bg-surface-1 p-4">
@@ -148,6 +129,14 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
           {defaultKind === "income" ? "+" : "-"}
           {formatCurrency(Math.abs(tx.amount))}
         </div>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <span className={`rounded-lg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${confidenceClass}`}>
+          {candidate.confidenceLabel} confidence
+        </span>
+        <span className="text-xs text-text-muted">
+          {candidate.occurrences} similar occurrence{candidate.occurrences === 1 ? "" : "s"}
+        </span>
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
@@ -207,6 +196,7 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
             disabled={saving}
             onClick={async () => {
               setSaving(true);
+              setSaveError(null);
               try {
                 await onConfirm({
                   transactionId: tx.transaction_id,
@@ -215,6 +205,8 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
                   category: kind === "expense" ? category || null : null,
                   incomeType: kind === "income" ? incomeType || null : null,
                 });
+              } catch (err) {
+                setSaveError(err instanceof Error ? err.message : "Could not save decision.");
               } finally {
                 setSaving(false);
               }
@@ -228,8 +220,11 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
             disabled={saving}
             onClick={async () => {
               setSaving(true);
+              setSaveError(null);
               try {
                 await onNotRecurring(tx.transaction_id);
+              } catch (err) {
+                setSaveError(err instanceof Error ? err.message : "Could not save decision.");
               } finally {
                 setSaving(false);
               }
@@ -240,6 +235,11 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
           </button>
         </div>
       </div>
+      {saveError && (
+        <div className="mt-2 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2 text-xs text-text-secondary">
+          {saveError}
+        </div>
+      )}
     </div>
   );
 };
@@ -360,7 +360,7 @@ const RecurringPlaidView: React.FC = () => {
   const reviewedTxIds = useMemo(() => new Set(Object.keys(overrides)), [overrides]);
   const reviewCandidates = useMemo(
     () =>
-      recurringCandidateTransactions(
+      recurringReviewCandidates(
         reviewTransactions,
         streamTxIds,
         reviewedTxIds
@@ -511,8 +511,8 @@ const RecurringPlaidView: React.FC = () => {
           <div className="mt-4 space-y-3">
             {reviewCandidates.map((tx) => (
               <ReviewCandidateCard
-                key={tx.transaction_id}
-                tx={tx}
+                key={tx.tx.transaction_id}
+                candidate={tx}
                 onConfirm={async ({
                   transactionId,
                   kind,

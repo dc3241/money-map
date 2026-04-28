@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { formatDateKey } from '../utils/dateUtils';
 import { getOccurrencesInMonth, migrateOldRecurringExpense, migrateOldRecurringIncome } from '../utils/recurrenceUtils';
+import { deriveLegacyBudgetWindow, isDateInWindow } from '../utils/budgetPeriods';
 import type { Transaction, DayData, RecurringExpense, RecurringIncome, Account, Category, Budget, SavingsGoal, Debt, DebtPayment } from '../types';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -125,6 +126,31 @@ function migrateOldData(state: any): any {
   
   if (!newState.budgets) {
     newState.budgets = [];
+  } else if (Array.isArray(newState.budgets)) {
+    newState.budgets = newState.budgets.map((budget: any) => {
+      if (budget?.windowStart && budget?.windowEnd) {
+        return {
+          ...budget,
+          period: budget.period === 'yearly' ? 'monthly' : budget.period,
+          version: budget.version ?? 2,
+        };
+      }
+
+      const period = budget?.period === 'yearly' ? 'monthly' : budget?.period;
+      const derivedWindow = deriveLegacyBudgetWindow(
+        { ...budget, period },
+        budget?.year ?? new Date().getFullYear(),
+        budget?.month ?? new Date().getMonth() + 1
+      );
+
+      return {
+        ...budget,
+        period: period ?? 'monthly',
+        windowStart: derivedWindow.windowStart,
+        windowEnd: derivedWindow.windowEnd,
+        version: 2,
+      };
+    });
   }
   
   if (!newState.savingsGoals) {
@@ -1429,6 +1455,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       addBudget: (budget) => {
         const newBudget: Budget = {
           ...budget,
+          version: 2,
           id: `budget-${Date.now()}-${Math.random()}`,
           createdAt: new Date().toISOString(),
         };
@@ -1458,41 +1485,26 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         const state = get();
         const budget = state.budgets.find((b) => b.id === budgetId);
         if (!budget) return 0;
-        
+
+        const window = budget.windowStart && budget.windowEnd
+          ? { windowStart: budget.windowStart, windowEnd: budget.windowEnd }
+          : deriveLegacyBudgetWindow(
+              budget as Partial<Budget> & { period?: string },
+              year,
+              month ?? new Date().getMonth() + 1
+            );
+
         let total = 0;
         Object.keys(state.days).forEach((dateKey) => {
-          const [y, m] = dateKey.split('-').map(Number);
           const dayData = state.days[dateKey];
-          
-          if (budget.period === 'monthly' && month !== undefined) {
-            if (y === year && m === month) {
-              dayData?.spending.forEach((tx) => {
-                if (tx.category === budget.categoryId) {
-                  total += tx.amount;
-                }
-              });
+          if (!dayData?.spending || !isDateInWindow(dateKey, window.windowStart, window.windowEnd)) return;
+          dayData.spending.forEach((tx) => {
+            if (tx.category === budget.categoryId) {
+              total += tx.amount;
             }
-          } else if (budget.period === 'yearly') {
-            if (y === year) {
-              dayData?.spending.forEach((tx) => {
-                if (tx.category === budget.categoryId) {
-                  total += tx.amount;
-                }
-              });
-            }
-          } else if (budget.period === 'weekly') {
-            // For weekly, we'd need to calculate which week of the year
-            // For simplicity, we'll check if it's in the same month for now
-            if (y === year && month !== undefined && m === month) {
-              dayData?.spending.forEach((tx) => {
-                if (tx.category === budget.categoryId) {
-                  total += tx.amount;
-                }
-              });
-            }
-          }
+          });
         });
-        
+
         return total;
       },
 
@@ -1514,30 +1526,21 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         const state = get();
         const budget = state.budgets.find((b) => b.id === budgetId);
         if (!budget) return [];
+        const window = budget.windowStart && budget.windowEnd
+          ? { windowStart: budget.windowStart, windowEnd: budget.windowEnd }
+          : deriveLegacyBudgetWindow(
+              budget as Partial<Budget> & { period?: string },
+              year,
+              month ?? new Date().getMonth() + 1
+            );
         const result: { date: string; transaction: Transaction }[] = [];
         Object.keys(state.days).forEach((dateKey) => {
-          const [y, m] = dateKey.split('-').map(Number);
           const dayData = state.days[dateKey];
           if (!dayData?.spending) return;
-          if (budget.period === 'monthly' && month !== undefined) {
-            if (y === year && m === month) {
-              dayData.spending.forEach((tx) => {
-                if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
-              });
-            }
-          } else if (budget.period === 'yearly') {
-            if (y === year) {
-              dayData.spending.forEach((tx) => {
-                if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
-              });
-            }
-          } else if (budget.period === 'weekly') {
-            if (y === year && month !== undefined && m === month) {
-              dayData.spending.forEach((tx) => {
-                if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
-              });
-            }
-          }
+          if (!isDateInWindow(dateKey, window.windowStart, window.windowEnd)) return;
+          dayData.spending.forEach((tx) => {
+            if (tx.category === budget.categoryId) result.push({ date: dateKey, transaction: tx });
+          });
         });
         result.sort((a, b) => a.date.localeCompare(b.date));
         return result;

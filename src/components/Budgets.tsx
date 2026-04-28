@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import { format, subMonths } from 'date-fns';
 import { usePlaidActuals } from '../context/PlaidActualsContext';
@@ -8,7 +8,9 @@ import { usePlaidRecurringFirestore } from '../hooks/usePlaidRecurringFirestore'
 import { usePlaidRecurringReview } from '../hooks/usePlaidRecurringReview';
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
 import { getPlaidBudgetStatus, getPlaidBudgetTransactionsAsStoreShape } from '../utils/plaidBudget';
-import { buildWeeklySpendablePlanner } from '../utils/forecastPlanner';
+import { buildWeeklySpendablePlanner, type PlannerHorizon } from '../utils/forecastPlanner';
+import { deriveLegacyBudgetWindow, getBudgetWindow } from '../utils/budgetPeriods';
+import type { Budget } from '../types';
 
 const Budgets: React.FC = () => {
   const budgets = useBudgetStore((state) => state.budgets);
@@ -18,9 +20,6 @@ const Budgets: React.FC = () => {
   const updateBudget = useBudgetStore((state) => state.updateBudget);
   const getBudgetStatus = useBudgetStore((state) => state.getBudgetStatus);
   const getBudgetTransactions = useBudgetStore((state) => state.getBudgetTransactions);
-  const recurringIncome = useBudgetStore((state) => state.recurringIncome);
-  const recurringExpenses = useBudgetStore((state) => state.recurringExpenses);
-  const manualAccounts = useBudgetStore((state) => state.accounts);
   const { usePlaidForActuals } = usePlaidActuals();
   const addCategory = useBudgetStore((state) => state.addCategory);
   const removeCategory = useBudgetStore((state) => state.removeCategory);
@@ -34,7 +33,9 @@ const Budgets: React.FC = () => {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [plannerHorizon, setPlannerHorizon] = useState<PlannerHorizon>('weekly');
   const [safetyBuffer, setSafetyBuffer] = useState(100);
+  const [hasUserEditedBuffer, setHasUserEditedBuffer] = useState(false);
 
   const { transactions: plaidTransactions } = usePlaidYearTransactions(
     usePlaidForActuals ? selectedYear : null
@@ -45,8 +46,8 @@ const Budgets: React.FC = () => {
   const forecastRangeStart = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
   const forecastRangeEnd = format(new Date(), 'yyyy-MM-dd');
   const { transactions: forecastSourceTransactions } = usePlaidTransactionsInRange(
-    usePlaidForActuals ? forecastRangeStart : null,
-    usePlaidForActuals ? forecastRangeEnd : null
+    forecastRangeStart,
+    forecastRangeEnd
   );
 
   const resolvedBudgetStatus = useMemo(
@@ -71,17 +72,17 @@ const Budgets: React.FC = () => {
 
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedPeriod, setSelectedPeriod] = useState<'all' | 'weekly' | 'monthly' | 'yearly'>('all');
+  const [selectedPeriod, setSelectedPeriod] = useState<'all' | 'weekly' | 'biweekly' | 'monthly'>('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'over' | 'at-risk' | 'on-track'>('all');
   
   const [newBudgetCategory, setNewBudgetCategory] = useState('');
   const [newBudgetAmount, setNewBudgetAmount] = useState('');
-  const [newBudgetPeriod, setNewBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [newBudgetPeriod, setNewBudgetPeriod] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
   
   // Edit budget states
   const [editBudgetCategory, setEditBudgetCategory] = useState('');
   const [editBudgetAmount, setEditBudgetAmount] = useState('');
-  const [editBudgetPeriod, setEditBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [editBudgetPeriod, setEditBudgetPeriod] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
   
   // Category management states
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -89,17 +90,27 @@ const Budgets: React.FC = () => {
   
   const expenseCategories = categories.filter(c => c.type === 'expense');
   
-  // First filter by year/month (base filter)
+  const resolveBudgetWindow = useCallback((budget: Budget) => {
+    return budget.windowStart && budget.windowEnd
+      ? { windowStart: budget.windowStart, windowEnd: budget.windowEnd }
+      : deriveLegacyBudgetWindow(
+          budget as Partial<Budget> & { period?: string },
+          selectedYear,
+          selectedMonth
+        );
+  }, [selectedYear, selectedMonth]);
+
+  // First filter by active month window (base filter)
   const yearMonthFilteredBudgets = useMemo(() => {
-    return budgets.filter(b => {
-      if (b.period === 'monthly') {
-        return b.year === selectedYear && b.month === selectedMonth;
-      } else if (b.period === 'yearly') {
-        return b.year === selectedYear;
-      }
-      return true;
+    const monthWindow = getBudgetWindow({
+      period: 'monthly',
+      referenceDate: new Date(selectedYear, selectedMonth - 1, 1),
     });
-  }, [budgets, selectedYear, selectedMonth]);
+    return budgets.filter(b => {
+      const budgetWindow = resolveBudgetWindow(b);
+      return budgetWindow.windowEnd >= monthWindow.windowStart && budgetWindow.windowStart <= monthWindow.windowEnd;
+    });
+  }, [budgets, selectedYear, selectedMonth, resolveBudgetWindow]);
   
   // Then apply category, period, and status filters
   const currentBudgets = useMemo(() => {
@@ -128,18 +139,24 @@ const Budgets: React.FC = () => {
       
       return true;
     });
-  }, [yearMonthFilteredBudgets, selectedCategory, selectedPeriod, selectedStatus, selectedYear, selectedMonth, resolvedBudgetStatus]);
+  }, [yearMonthFilteredBudgets, selectedCategory, selectedPeriod, selectedStatus, resolvedBudgetStatus]);
   
   const handleAddBudget = () => {
     const amount = parseFloat(newBudgetAmount);
     if (newBudgetCategory && amount > 0) {
+      const budgetWindow = getBudgetWindow({
+        period: newBudgetPeriod,
+        referenceDate: new Date(selectedYear, selectedMonth - 1, 1),
+      });
       addBudget({
         categoryId: newBudgetCategory,
         amount,
         period: newBudgetPeriod,
-        year: selectedYear,
-        month: newBudgetPeriod === 'monthly' ? selectedMonth : undefined,
-        week: newBudgetPeriod === 'weekly' ? 1 : undefined,
+        year: selectedYear, // Legacy compatibility
+        month: selectedMonth, // Legacy compatibility
+        windowStart: budgetWindow.windowStart,
+        windowEnd: budgetWindow.windowEnd,
+        version: 2,
       });
       setNewBudgetCategory('');
       setNewBudgetAmount('');
@@ -166,6 +183,10 @@ const Budgets: React.FC = () => {
         categoryId: editBudgetCategory,
         amount,
         period: editBudgetPeriod,
+        ...getBudgetWindow({
+          period: editBudgetPeriod,
+          referenceDate: new Date(selectedYear, selectedMonth - 1, 1),
+        }),
       });
       setShowEditModal(false);
       setEditingBudget(null);
@@ -284,23 +305,16 @@ const Budgets: React.FC = () => {
   const planner = useMemo(
     () =>
       buildWeeklySpendablePlanner({
-        usePlaidForActuals,
         safetyBuffer,
-        windowDays: 7,
-        manualRecurringIncome: recurringIncome,
-        manualRecurringExpenses: recurringExpenses,
-        manualAccounts,
+        horizon: plannerHorizon,
         plaidAccounts,
         plaidRecurring,
         recurringOverrides,
         forecastSourceTransactions,
       }),
     [
-      usePlaidForActuals,
+      plannerHorizon,
       safetyBuffer,
-      recurringIncome,
-      recurringExpenses,
-      manualAccounts,
       plaidAccounts,
       plaidRecurring,
       recurringOverrides,
@@ -308,6 +322,20 @@ const Budgets: React.FC = () => {
     ]
   );
   const hasPlannerEvents = planner.events.length > 0;
+  const plannerWindow = {
+    windowStart: planner.windowStart,
+    windowEnd: planner.windowEnd,
+  };
+  const allocatedInPlannerWindow = budgets.reduce((sum, budget) => {
+    const budgetWindow = resolveBudgetWindow(budget);
+    const overlapsPlannerWindow =
+      budgetWindow.windowEnd >= plannerWindow.windowStart &&
+      budgetWindow.windowStart <= plannerWindow.windowEnd;
+    if (!overlapsPlannerWindow) return sum;
+    return sum + budget.amount;
+  }, 0);
+  const unallocatedInPlannerWindow = planner.safeSpendable - allocatedInPlannerWindow;
+  const isPlannerOverAllocated = unallocatedInPlannerWindow < 0;
   const plannerHasShortfall = planner.grossSpendable < 0;
   const plannerConfidencePercent = Math.round(planner.confidence.score * 100);
   const plannerConfidenceClass =
@@ -316,6 +344,30 @@ const Budgets: React.FC = () => {
       : planner.confidence.label === 'Medium'
         ? 'bg-amber/10 text-amber'
         : 'bg-spending-red-dim text-spending-red';
+  const horizonLabel =
+    plannerHorizon === 'weekly'
+      ? 'Calendar week (Mon-Sun)'
+      : plannerHorizon === 'biweekly'
+        ? '2-week calendar block (Mon-Sun x2)'
+        : 'Current calendar month';
+  const spendableLabel =
+    plannerHorizon === 'weekly'
+      ? 'Spendable this week'
+      : plannerHorizon === 'biweekly'
+        ? 'Spendable this 2 weeks'
+        : 'Spendable this month';
+
+  useEffect(() => {
+    if (hasUserEditedBuffer) return;
+    const roundedStartingCash = Math.max(0, Math.round(planner.startingCash * 100) / 100);
+    if (Math.abs(safetyBuffer - roundedStartingCash) < 0.005) return;
+    setSafetyBuffer(roundedStartingCash);
+  }, [hasUserEditedBuffer, planner.startingCash, safetyBuffer]);
+
+  const updateSafetyBufferFromUser = (nextValue: number) => {
+    setHasUserEditedBuffer(true);
+    setSafetyBuffer(Math.max(0, Number.isFinite(nextValue) ? nextValue : 0));
+  };
   
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden bg-bg-app min-h-screen w-full max-w-full min-w-0">
@@ -406,12 +458,12 @@ const Budgets: React.FC = () => {
                       Period
                     </label>
                     <div className="flex gap-2 flex-wrap">
-                      {(['all', 'weekly', 'monthly', 'yearly'] as const).map((period) => {
+                      {(['all', 'weekly', 'biweekly', 'monthly'] as const).map((period) => {
                         const labels = {
                           all: 'All',
                           weekly: 'Weekly',
+                          biweekly: 'Bi-Weekly',
                           monthly: 'Monthly',
-                          yearly: 'Yearly',
                         };
                         const isSelected = selectedPeriod === period;
                         return (
@@ -499,9 +551,12 @@ const Budgets: React.FC = () => {
           <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-text-primary">Weekly Spendable Planner</h3>
+                <h3 className="text-lg font-semibold text-text-primary">Spendable Planner</h3>
                 <p className="text-text-muted text-sm mt-1">
-                  Based on expected recurring items over next 7 days ({format(new Date(`${planner.windowStart}T00:00:00`), 'MMM d')} - {format(new Date(`${planner.windowEnd}T00:00:00`), 'MMM d')}).
+                  {horizonLabel} forecast based on expected recurring items ({format(new Date(`${planner.windowStart}T00:00:00`), 'MMM d')} - {format(new Date(`${planner.windowEnd}T00:00:00`), 'MMM d')}).
+                </p>
+                <p className="text-text-muted text-xs mt-1">
+                  Default buffer protects your current cash so spendable starts income-based.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -509,14 +564,35 @@ const Budgets: React.FC = () => {
                   {planner.confidence.label} confidence ({plannerConfidencePercent}%)
                 </span>
                 <span className="text-xs text-text-muted">
-                  O:{planner.confidence.sourceMix.overrides} P:{planner.confidence.sourceMix.plaid} M:{planner.confidence.sourceMix.manual}
+                  O:{planner.confidence.sourceMix.overrides} P:{planner.confidence.sourceMix.plaid}
                 </span>
               </div>
             </div>
 
+            <div className="mt-4 inline-flex rounded-lg border border-border-subtle bg-surface-2 p-1">
+              {([
+                { id: 'weekly', label: 'Weekly' },
+                { id: 'biweekly', label: 'Bi-Weekly' },
+                { id: 'monthly', label: 'Monthly' },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setPlannerHorizon(tab.id)}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    plannerHorizon === tab.id
+                      ? 'bg-surface-3 text-text-primary'
+                      : 'text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
               <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
-                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Spendable this week</div>
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">{spendableLabel}</div>
                 <div className={`text-2xl font-semibold tabular-nums ${planner.safeSpendable > 0 ? 'text-income-green' : 'text-text-primary'}`}>
                   {formatCurrency(planner.safeSpendable)}
                 </div>
@@ -541,6 +617,28 @@ const Budgets: React.FC = () => {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Allocated (this planner window)</div>
+                <div className="text-lg font-semibold tabular-nums text-text-primary">
+                  {formatCurrency(allocatedInPlannerWindow)}
+                </div>
+              </div>
+              <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
+                <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Unallocated</div>
+                <div className={`text-lg font-semibold tabular-nums ${isPlannerOverAllocated ? 'text-spending-red' : 'text-income-green'}`}>
+                  {formatCurrency(unallocatedInPlannerWindow)}
+                </div>
+              </div>
+              <div className={`rounded-xl border p-4 ${isPlannerOverAllocated ? 'border-spending-red/40 bg-spending-red-dim' : 'border-income-green/40 bg-income-green-dim'}`}>
+                <div className={`text-sm font-medium ${isPlannerOverAllocated ? 'text-spending-red' : 'text-income-green'}`}>
+                  {isPlannerOverAllocated
+                    ? 'Allocated budgets exceed spendable for this horizon.'
+                    : 'You still have spendable room to allocate by category.'}
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
               <div className="bg-surface-2 rounded-xl border border-border-subtle p-4">
                 <div className="text-xs uppercase tracking-widest text-text-muted mb-1">Starting cash</div>
@@ -560,7 +658,7 @@ const Budgets: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setSafetyBuffer((prev) => Math.max(0, prev - 25))}
+                      onClick={() => updateSafetyBufferFromUser(safetyBuffer - 25)}
                       className="px-2 py-1 rounded-lg bg-surface-3 border border-border-subtle text-text-secondary hover:text-text-primary"
                       aria-label="Decrease safety buffer"
                     >
@@ -568,7 +666,7 @@ const Budgets: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSafetyBuffer((prev) => prev + 25)}
+                      onClick={() => updateSafetyBufferFromUser(safetyBuffer + 25)}
                       className="px-2 py-1 rounded-lg bg-surface-3 border border-border-subtle text-text-secondary hover:text-text-primary"
                       aria-label="Increase safety buffer"
                     >
@@ -583,7 +681,7 @@ const Budgets: React.FC = () => {
                     min="0"
                     step="1"
                     value={safetyBuffer}
-                    onChange={(e) => setSafetyBuffer(Math.max(0, Number(e.target.value) || 0))}
+                    onChange={(e) => updateSafetyBufferFromUser(Number(e.target.value) || 0)}
                     className="w-full pl-7 pr-3 py-2 bg-surface-3 border border-border-subtle rounded-lg text-text-primary focus:border-accent focus:outline-none"
                   />
                 </div>
@@ -592,12 +690,12 @@ const Budgets: React.FC = () => {
 
             {!hasPlannerEvents && (
               <div className="mt-4 rounded-xl border border-border-subtle bg-surface-2 px-4 py-3 text-sm text-text-muted">
-                No recurring forecast data found yet. Add recurring entries (or confirm Plaid recurring streams) to improve weekly spendable guidance.
+                No approved recurring Plaid expenses yet. Review recurring items to improve planner accuracy.
               </div>
             )}
             {plannerHasShortfall && (
               <div className="mt-4 rounded-xl border border-spending-red/40 bg-spending-red-dim px-4 py-3 text-sm text-spending-red">
-                Projected shortfall detected. Expected recurring expenses exceed available cash plus recurring income for this 7-day window.
+                Projected shortfall detected. Expected recurring expenses exceed available cash plus recurring income for this period.
               </div>
             )}
           </div>
@@ -611,7 +709,8 @@ const Budgets: React.FC = () => {
               const category = categories.find(c => c.id === budget.categoryId);
               const isOverBudget = status.percentage > 100;
               const isWarning = status.percentage > 80 && status.percentage <= 100;
-              const periodLabel = budget.period === 'monthly' ? 'Monthly' : budget.period === 'yearly' ? 'Yearly' : 'Weekly';
+              const periodLabel = budget.period === 'monthly' ? 'Monthly' : budget.period === 'biweekly' ? 'Bi-Weekly' : 'Weekly';
+              const budgetWindow = resolveBudgetWindow(budget);
               const progressFillClass = isOverBudget ? 'bg-spending-red' : isWarning ? 'bg-amber' : 'bg-income-green';
               const statusBadge = isOverBudget
                 ? 'bg-spending-red-dim text-spending-red text-xs rounded-lg px-2 py-0.5'
@@ -634,6 +733,9 @@ const Budgets: React.FC = () => {
                         <div className="flex items-center gap-2 mt-1">
                           <span className="bg-surface-2 text-text-secondary text-xs rounded-lg px-2 py-0.5">
                             {periodLabel}
+                          </span>
+                          <span className="bg-surface-2 text-text-muted text-xs rounded-lg px-2 py-0.5">
+                            {format(new Date(`${budgetWindow.windowStart}T00:00:00`), 'MMM d')} - {format(new Date(`${budgetWindow.windowEnd}T00:00:00`), 'MMM d')}
                           </span>
                           <span className={statusBadge}>{statusLabel}</span>
                         </div>
@@ -806,13 +908,22 @@ const Budgets: React.FC = () => {
                   </label>
                   <select
                     value={newBudgetPeriod}
-                    onChange={(e) => setNewBudgetPeriod(e.target.value as 'weekly' | 'monthly' | 'yearly')}
+                    onChange={(e) => setNewBudgetPeriod(e.target.value as 'weekly' | 'biweekly' | 'monthly')}
                     className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     <option value="weekly">Weekly</option>
+                    <option value="biweekly">Bi-Weekly</option>
                     <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
                   </select>
+                  <p className="text-xs text-text-muted mt-2">
+                    Window: {(() => {
+                      const window = getBudgetWindow({
+                        period: newBudgetPeriod,
+                        referenceDate: new Date(selectedYear, selectedMonth - 1, 1),
+                      });
+                      return `${format(new Date(`${window.windowStart}T00:00:00`), 'MMM d, yyyy')} - ${format(new Date(`${window.windowEnd}T00:00:00`), 'MMM d, yyyy')}`;
+                    })()}
+                  </p>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button
@@ -895,13 +1006,22 @@ const Budgets: React.FC = () => {
                   </label>
                   <select
                     value={editBudgetPeriod}
-                    onChange={(e) => setEditBudgetPeriod(e.target.value as 'weekly' | 'monthly' | 'yearly')}
+                    onChange={(e) => setEditBudgetPeriod(e.target.value as 'weekly' | 'biweekly' | 'monthly')}
                     className="w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary focus:border-accent focus:ring-0 focus:outline-none transition-all"
                   >
                     <option value="weekly">Weekly</option>
+                    <option value="biweekly">Bi-Weekly</option>
                     <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
                   </select>
+                  <p className="text-xs text-text-muted mt-2">
+                    Window: {(() => {
+                      const window = getBudgetWindow({
+                        period: editBudgetPeriod,
+                        referenceDate: new Date(selectedYear, selectedMonth - 1, 1),
+                      });
+                      return `${format(new Date(`${window.windowStart}T00:00:00`), 'MMM d, yyyy')} - ${format(new Date(`${window.windowEnd}T00:00:00`), 'MMM d, yyyy')}`;
+                    })()}
+                  </p>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button
@@ -929,9 +1049,12 @@ const Budgets: React.FC = () => {
         {reportBudgetId && (() => {
           const reportBudget = budgets.find((b) => b.id === reportBudgetId);
           const reportCategory = reportBudget ? categories.find((c) => c.id === reportBudget.categoryId) : null;
-          const periodLabel = reportBudget?.period === 'monthly' ? 'Monthly' : reportBudget?.period === 'yearly' ? 'Yearly' : 'Weekly';
-          const dateLabel = reportBudget?.period === 'yearly'
-            ? `${selectedYear}`
+          const periodLabel = reportBudget?.period === 'monthly' ? 'Monthly' : reportBudget?.period === 'biweekly' ? 'Bi-Weekly' : 'Weekly';
+          const reportWindow = reportBudget
+            ? resolveBudgetWindow(reportBudget)
+            : null;
+          const dateLabel = reportWindow
+            ? `${format(new Date(`${reportWindow.windowStart}T00:00:00`), 'MMM d, yyyy')} - ${format(new Date(`${reportWindow.windowEnd}T00:00:00`), 'MMM d, yyyy')}`
             : `${format(new Date(selectedYear, selectedMonth - 1), 'MMMM yyyy')}`;
           const budgetTxList = reportBudget
             ? usePlaidForActuals

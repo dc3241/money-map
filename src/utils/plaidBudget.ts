@@ -1,6 +1,7 @@
 import { parseISO, startOfDay } from "date-fns";
 import type { PlaidTransaction } from "../hooks/usePlaidTransactions";
 import type { Budget, Category, Transaction } from "../types";
+import { deriveLegacyBudgetWindow, isDateInWindow } from "./budgetPeriods";
 
 const EXPENSE_CATEGORY_PLAID_PRIMARIES: Record<string, string[]> = {
   "cat-exp-housing": ["RENT_AND_UTILITIES"],
@@ -26,17 +27,15 @@ function txInBudgetPeriod(
   year: number,
   month?: number
 ): boolean {
-  const [y, m] = dateStr.split("-").map(Number);
-  if (budget.period === "monthly" && month !== undefined) {
-    return y === year && m === month;
-  }
-  if (budget.period === "yearly") {
-    return y === year;
-  }
-  if (budget.period === "weekly" && month !== undefined) {
-    return y === year && m === month;
-  }
-  return false;
+  const window =
+    budget.windowStart && budget.windowEnd
+      ? { windowStart: budget.windowStart, windowEnd: budget.windowEnd }
+      : deriveLegacyBudgetWindow(
+          budget as Partial<Budget> & { period?: string },
+          year,
+          month ?? new Date().getMonth() + 1
+        );
+  return isDateInWindow(dateStr, window.windowStart, window.windowEnd);
 }
 
 function matchesExpenseCategory(

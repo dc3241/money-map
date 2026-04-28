@@ -29,6 +29,56 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow write: if false;
       }
+
+      match /recurringReview/{docId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null
+                     && request.auth.uid == userId
+                     && request.resource.data.keys().hasOnly([
+                          "transactionId",
+                          "decision",
+                          "kind",
+                          "cadence",
+                          "category",
+                          "incomeType",
+                          "source",
+                          "updatedAt"
+                        ])
+                     && request.resource.data.transactionId is string
+                     && request.resource.data.transactionId.size() > 0
+                     && request.resource.data.transactionId == docId
+                     && request.resource.data.decision in ["recurring", "not_recurring"]
+                     && (
+                          !("kind" in request.resource.data)
+                          || request.resource.data.kind == null
+                          || request.resource.data.kind in ["income", "expense"]
+                        )
+                     && (
+                          !("cadence" in request.resource.data)
+                          || request.resource.data.cadence == null
+                          || request.resource.data.cadence is string
+                        )
+                     && (
+                          !("category" in request.resource.data)
+                          || request.resource.data.category == null
+                          || request.resource.data.category is string
+                        )
+                     && (
+                          !("incomeType" in request.resource.data)
+                          || request.resource.data.incomeType == null
+                          || request.resource.data.incomeType is string
+                        )
+                     && (
+                          !("source" in request.resource.data)
+                          || request.resource.data.source == null
+                          || request.resource.data.source is string
+                        )
+                     && (
+                          !("updatedAt" in request.resource.data)
+                          || request.resource.data.updatedAt == null
+                          || request.resource.data.updatedAt is timestamp
+                        );
+      }
     }
 
     match /supportTickets/{ticketId} {

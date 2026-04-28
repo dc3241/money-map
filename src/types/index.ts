@@ -107,10 +107,14 @@ export interface Budget {
   id: string;
   categoryId: string; // Category ID
   amount: number; // Budget limit
-  period: 'weekly' | 'monthly' | 'yearly';
-  year: number;
-  month?: number; // For monthly budgets
-  week?: number; // For weekly budgets
+  period: 'weekly' | 'biweekly' | 'monthly';
+  windowStart: string; // YYYY-MM-DD
+  windowEnd: string; // YYYY-MM-DD
+  // Legacy compatibility fields (migration fallback only)
+  year?: number;
+  month?: number;
+  week?: number;
+  version?: number;
   createdAt: string;
 }
 

@@ -1,14 +1,27 @@
-import { addDays, addMonths, addWeeks, addYears, format, isAfter, parseISO, startOfDay } from 'date-fns';
-import type { RecurringExpense, RecurringIncome, Account, RecurrencePattern } from '../types';
-import { getNextOccurrence } from './recurrenceUtils';
+import {
+  addDays,
+  addMonths,
+  addWeeks,
+  addYears,
+  differenceInCalendarDays,
+  endOfWeek,
+  endOfMonth,
+  format,
+  isAfter,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  startOfDay,
+} from 'date-fns';
 import type { PlaidTransaction } from '../hooks/usePlaidTransactions';
 import type { PlaidAccount } from '../hooks/usePlaidAccounts';
 import type { PlaidRecurringSnapshot, PlaidTransactionStreamDoc } from '../hooks/usePlaidRecurringFirestore';
 import type { RecurringReviewOverride } from '../hooks/usePlaidRecurringReview';
 
-export type PlannerEventSource = 'override' | 'plaid_stream' | 'manual';
+export type PlannerEventSource = 'override' | 'plaid_stream';
 export type PlannerEventType = 'income' | 'expense';
 export type PlannerConfidenceLabel = 'High' | 'Medium' | 'Low';
+export type PlannerHorizon = 'weekly' | 'biweekly' | 'monthly';
 
 export interface PlannerEvent {
   id: string;
@@ -36,23 +49,48 @@ export interface SpendablePlannerModel {
     sourceMix: {
       overrides: number;
       plaid: number;
-      manual: number;
     };
   };
   events: PlannerEvent[];
+  approvedFixedExpenseCount: number;
 }
 
 interface BuildSpendablePlannerInput {
-  usePlaidForActuals: boolean;
   safetyBuffer: number;
+  horizon?: PlannerHorizon;
   windowDays?: number;
-  manualRecurringIncome: RecurringIncome[];
-  manualRecurringExpenses: RecurringExpense[];
-  manualAccounts: Account[];
   plaidAccounts: PlaidAccount[];
   plaidRecurring: PlaidRecurringSnapshot;
   recurringOverrides: Record<string, RecurringReviewOverride>;
   forecastSourceTransactions: PlaidTransaction[];
+}
+
+function resolveWindow(horizon: PlannerHorizon, customWindowDays?: number): {
+  windowStart: Date;
+  windowEnd: Date;
+  windowDays: number;
+} {
+  const today = startOfDay(new Date());
+  const weekStart = startOfDay(startOfWeek(today, { weekStartsOn: 1 }));
+
+  if (horizon === 'weekly') {
+    const windowStart = weekStart;
+    const windowEnd = startOfDay(endOfWeek(today, { weekStartsOn: 1 }));
+    const windowDays = Math.max(1, differenceInCalendarDays(windowEnd, windowStart) + 1);
+    return { windowStart, windowEnd, windowDays };
+  }
+
+  if (horizon === 'biweekly') {
+    const windowStart = weekStart;
+    const resolvedDays = customWindowDays && customWindowDays > 0 ? Math.floor(customWindowDays) : 14;
+    const windowEnd = startOfDay(addDays(windowStart, resolvedDays - 1));
+    return { windowStart, windowEnd, windowDays: Math.max(1, resolvedDays) };
+  }
+
+  const windowStart = startOfDay(startOfMonth(today));
+  const windowEnd = startOfDay(endOfMonth(today));
+  const windowDays = Math.max(1, differenceInCalendarDays(windowEnd, windowStart) + 1);
+  return { windowStart, windowEnd, windowDays };
 }
 
 function addCadence(base: Date, cadence: string): Date {
@@ -111,11 +149,13 @@ function streamAmount(s: PlaidTransactionStreamDoc): number {
 }
 
 function streamAnchorDate(stream: PlaidTransactionStreamDoc, fromDate: Date): Date | null {
-  const raw = stream.predicted_next_date ?? stream.last_date ?? null;
-  if (!raw) return null;
-  const parsed = parseISO(`${raw}T12:00:00`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  let next = startOfDay(parsed);
+  // Use last_date as the recurrence anchor when available so monthly windows can
+  // project all expected occurrences in-range, not only the next predicted hit.
+  const anchorRaw = stream.last_date ?? stream.predicted_next_date ?? null;
+  if (!anchorRaw) return null;
+  const anchorParsed = parseISO(`${anchorRaw}T12:00:00`);
+  if (Number.isNaN(anchorParsed.getTime())) return null;
+  let next = startOfDay(anchorParsed);
   while (!isAfter(next, fromDate)) {
     next = nextByStreamFrequency(next, stream.frequency);
   }
@@ -126,54 +166,6 @@ function confidenceLabel(value: number): PlannerConfidenceLabel {
   if (value >= 0.8) return 'High';
   if (value >= 0.62) return 'Medium';
   return 'Low';
-}
-
-function buildManualEvents(
-  recurringIncome: RecurringIncome[],
-  recurringExpenses: RecurringExpense[],
-  windowStart: Date,
-  windowEnd: Date
-): PlannerEvent[] {
-  const events: PlannerEvent[] = [];
-  const appendRecurring = (
-    items: RecurringIncome[] | RecurringExpense[],
-    type: PlannerEventType
-  ) => {
-    for (const item of items) {
-      if (!item.isActive) continue;
-      let next = getNextOccurrence(
-        item.pattern as RecurrencePattern,
-        addDays(windowStart, -1),
-        item.startDate,
-        item.endDate
-      );
-      let count = 0;
-      while (next && !isAfter(startOfDay(next), windowEnd) && count < 24) {
-        const n = startOfDay(next);
-        if (!isAfter(windowStart, n)) {
-          events.push({
-            id: `manual-${type}-${item.id}-${count}`,
-            source: 'manual',
-            type,
-            label: item.description || 'Recurring',
-            date: format(n, 'yyyy-MM-dd'),
-            amount: Math.abs(item.amount),
-            confidence: 0.64,
-          });
-        }
-        next = getNextOccurrence(
-          item.pattern as RecurrencePattern,
-          n,
-          item.startDate,
-          item.endDate
-        );
-        count++;
-      }
-    }
-  };
-  appendRecurring(recurringIncome, 'income');
-  appendRecurring(recurringExpenses, 'expense');
-  return events;
 }
 
 function buildOverrideEvents(
@@ -229,6 +221,10 @@ function buildOverrideEvents(
   return { events, blockedStreamTransactionIds, explicitNotRecurring };
 }
 
+function isQualifiedPlaidStream(stream: PlaidTransactionStreamDoc): boolean {
+  return stream.status?.toLowerCase() === 'mature' && stream.is_active !== false;
+}
+
 function buildPlaidStreamEvents(
   recurring: PlaidRecurringSnapshot,
   windowStart: Date,
@@ -245,6 +241,7 @@ function buildPlaidStreamEvents(
         : [];
       if (streamTxIds.some((id) => explicitNotRecurring.has(id))) continue;
       if (streamTxIds.some((id) => blockedStreamTransactionIds.has(id))) continue;
+      if (!isQualifiedPlaidStream(stream)) continue;
 
       let next = streamAnchorDate(stream, addDays(windowStart, -1));
       if (!next) continue;
@@ -284,19 +281,10 @@ function buildPlaidStreamEvents(
 export function buildWeeklySpendablePlanner(
   input: BuildSpendablePlannerInput
 ): SpendablePlannerModel {
-  const days = input.windowDays && input.windowDays > 0 ? Math.floor(input.windowDays) : 7;
-  const today = startOfDay(new Date());
-  // Planner intentionally starts tomorrow to avoid mixing actuals with forecasted future spendability.
-  const windowStart = startOfDay(addDays(today, 1));
-  const windowEnd = startOfDay(addDays(windowStart, days - 1));
+  const horizon = input.horizon ?? 'weekly';
+  const { windowStart, windowEnd, windowDays: days } = resolveWindow(horizon, input.windowDays);
   const safetyBuffer = Math.max(0, Number.isFinite(input.safetyBuffer) ? input.safetyBuffer : 0);
 
-  const manualEvents = buildManualEvents(
-    input.manualRecurringIncome,
-    input.manualRecurringExpenses,
-    windowStart,
-    windowEnd
-  );
   const { events: overrideEvents, blockedStreamTransactionIds, explicitNotRecurring } =
     buildOverrideEvents(input.recurringOverrides, input.forecastSourceTransactions, windowStart, windowEnd);
   const plaidStreamEvents = buildPlaidStreamEvents(
@@ -307,9 +295,7 @@ export function buildWeeklySpendablePlanner(
     explicitNotRecurring
   );
 
-  const events = input.usePlaidForActuals
-    ? [...overrideEvents, ...plaidStreamEvents]
-    : manualEvents;
+  const events = [...overrideEvents, ...plaidStreamEvents];
 
   const projectedIncome = events
     .filter((event) => event.type === 'income')
@@ -318,13 +304,9 @@ export function buildWeeklySpendablePlanner(
     .filter((event) => event.type === 'expense')
     .reduce((sum, event) => sum + event.amount, 0);
 
-  const startingCash = input.usePlaidForActuals
-    ? input.plaidAccounts
-        .filter((account) => !['credit', 'loan', 'investment'].includes(account.type))
-        .reduce((sum, account) => sum + Number(account.current_balance ?? 0), 0)
-    : input.manualAccounts
-        .filter((account) => account.type !== 'credit_card')
-        .reduce((sum, account) => sum + Number(account.initialBalance ?? 0), 0);
+  const startingCash = input.plaidAccounts
+    .filter((account) => !['credit', 'loan', 'investment'].includes(account.type))
+    .reduce((sum, account) => sum + Number(account.current_balance ?? 0), 0);
 
   const grossSpendable = startingCash + projectedIncome - projectedFixedExpenses;
   const safeSpendable = Math.max(0, grossSpendable - safetyBuffer);
@@ -333,7 +315,6 @@ export function buildWeeklySpendablePlanner(
   const sourceMix = {
     overrides: events.filter((event) => event.source === 'override').length,
     plaid: events.filter((event) => event.source === 'plaid_stream').length,
-    manual: events.filter((event) => event.source === 'manual').length,
   };
   const score =
     events.length === 0 ? 0 : events.reduce((sum, event) => sum + event.confidence, 0) / events.length;
@@ -354,5 +335,6 @@ export function buildWeeklySpendablePlanner(
       sourceMix,
     },
     events: events.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)),
+    approvedFixedExpenseCount: events.filter((event) => event.type === 'expense').length,
   };
 }
