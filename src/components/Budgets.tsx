@@ -7,6 +7,8 @@ import { usePlaidTransactionsInRange } from '../hooks/usePlaidTransactionsInRang
 import { usePlaidRecurringFirestore } from '../hooks/usePlaidRecurringFirestore';
 import { usePlaidRecurringReview } from '../hooks/usePlaidRecurringReview';
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
+import { usePlaidTransactionCategoryOverrides } from '../hooks/usePlaidTransactionCategoryOverrides';
+import { usePlaidTransactionCategoryRules } from '../hooks/usePlaidTransactionCategoryRules';
 import { getPlaidBudgetStatus, getPlaidBudgetTransactionsAsStoreShape } from '../utils/plaidBudget';
 import { buildWeeklySpendablePlanner, type PlannerHorizon } from '../utils/forecastPlanner';
 import { deriveLegacyBudgetWindow, getBudgetWindow } from '../utils/budgetPeriods';
@@ -36,6 +38,8 @@ const Budgets: React.FC = () => {
   const [plannerHorizon, setPlannerHorizon] = useState<PlannerHorizon>('weekly');
   const [safetyBuffer, setSafetyBuffer] = useState(100);
   const [hasUserEditedBuffer, setHasUserEditedBuffer] = useState(false);
+  const [txRuleApplyById, setTxRuleApplyById] = useState<Record<string, boolean>>({});
+  const [txCategorySavingById, setTxCategorySavingById] = useState<Record<string, boolean>>({});
 
   const { transactions: plaidTransactions } = usePlaidYearTransactions(
     usePlaidForActuals ? selectedYear : null
@@ -43,6 +47,10 @@ const Budgets: React.FC = () => {
   const { data: plaidRecurring } = usePlaidRecurringFirestore();
   const { overrides: recurringOverrides } = usePlaidRecurringReview();
   const { accounts: plaidAccounts } = usePlaidAccounts();
+  const { overrides: txCategoryOverrides, saveOverride: saveTxCategoryOverride } =
+    usePlaidTransactionCategoryOverrides();
+  const { rules: txCategoryRules, saveRule: saveTxCategoryRule } =
+    usePlaidTransactionCategoryRules();
   const forecastRangeStart = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
   const forecastRangeEnd = format(new Date(), 'yyyy-MM-dd');
   const { transactions: forecastSourceTransactions } = usePlaidTransactionsInRange(
@@ -55,7 +63,15 @@ const Budgets: React.FC = () => {
       const b = budgets.find((x) => x.id === budgetId);
       if (!b) return getBudgetStatus(budgetId, selectedYear, selectedMonth);
       if (usePlaidForActuals) {
-        return getPlaidBudgetStatus(plaidTransactions, b, categories, selectedYear, selectedMonth);
+        return getPlaidBudgetStatus(
+          plaidTransactions,
+          b,
+          categories,
+          txCategoryOverrides,
+          txCategoryRules,
+          selectedYear,
+          selectedMonth
+        );
       }
       return getBudgetStatus(budgetId, selectedYear, selectedMonth);
     },
@@ -64,6 +80,8 @@ const Budgets: React.FC = () => {
       categories,
       getBudgetStatus,
       plaidTransactions,
+      txCategoryOverrides,
+      txCategoryRules,
       usePlaidForActuals,
       selectedYear,
       selectedMonth,
@@ -368,6 +386,52 @@ const Budgets: React.FC = () => {
     setHasUserEditedBuffer(true);
     setSafetyBuffer(Math.max(0, Number.isFinite(nextValue) ? nextValue : 0));
   };
+
+  const plaidTxById = useMemo(() => {
+    const map = new Map<string, (typeof plaidTransactions)[number]>();
+    plaidTransactions.forEach((tx) => map.set(tx.transaction_id, tx));
+    return map;
+  }, [plaidTransactions]);
+
+  const handleSaveTransactionCategory = useCallback(
+    async (transactionId: string, nextCategoryId: string) => {
+      const categoryId = nextCategoryId.trim();
+      if (!categoryId) return;
+      setTxCategorySavingById((prev) => ({ ...prev, [transactionId]: true }));
+      try {
+        await saveTxCategoryOverride({ transactionId, categoryId });
+        if (txRuleApplyById[transactionId]) {
+          const tx = plaidTxById.get(transactionId);
+          const merchantContains = (tx?.merchant_name ?? tx?.name ?? '').trim();
+          if (merchantContains.length > 0) {
+            const nextPriority =
+              txCategoryRules.length > 0
+                ? Math.max(...txCategoryRules.map((rule) => rule.priority)) + 1
+                : 100;
+            await saveTxCategoryRule({
+              categoryId,
+              priority: nextPriority,
+              matcher: {
+                merchantContains,
+                accountId: tx?.account_id ?? undefined,
+                direction: tx && tx.amount < 0 ? 'income' : 'expense',
+              },
+            });
+          }
+        }
+      } finally {
+        setTxCategorySavingById((prev) => ({ ...prev, [transactionId]: false }));
+        setTxRuleApplyById((prev) => ({ ...prev, [transactionId]: false }));
+      }
+    },
+    [
+      plaidTxById,
+      saveTxCategoryOverride,
+      saveTxCategoryRule,
+      txCategoryRules,
+      txRuleApplyById,
+    ]
+  );
   
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden bg-bg-app min-h-screen w-full max-w-full min-w-0">
@@ -1062,6 +1126,8 @@ const Budgets: React.FC = () => {
                   plaidTransactions,
                   reportBudget,
                   categories,
+                  txCategoryOverrides,
+                  txCategoryRules,
                   selectedYear,
                   selectedMonth
                 )
@@ -1095,6 +1161,42 @@ const Budgets: React.FC = () => {
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-text-primary truncate">{transaction.description || 'No description'}</p>
                             <p className="text-xs text-text-muted">{format(new Date(date + 'T00:00:00'), 'MMM d, yyyy')}</p>
+                            {usePlaidForActuals && (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <select
+                                  value={transaction.category ?? ''}
+                                  onChange={(e) => void handleSaveTransactionCategory(transaction.id, e.target.value)}
+                                  disabled={txCategorySavingById[transaction.id]}
+                                  className="rounded-lg border border-border-subtle bg-surface-1 px-2 py-1 text-xs text-text-primary"
+                                >
+                                  <option value="">Select category</option>
+                                  {categories
+                                    .filter((cat) =>
+                                      transaction.type === 'income'
+                                        ? cat.type === 'income'
+                                        : cat.type === 'expense'
+                                    )
+                                    .map((cat) => (
+                                    <option key={cat.id} value={cat.id}>
+                                      {cat.icon || '📌'} {cat.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <label className="inline-flex items-center gap-1 text-xs text-text-muted">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(txRuleApplyById[transaction.id])}
+                                    onChange={(e) =>
+                                      setTxRuleApplyById((prev) => ({
+                                        ...prev,
+                                        [transaction.id]: e.target.checked,
+                                      }))
+                                    }
+                                  />
+                                  Apply to future similar transactions
+                                </label>
+                              </div>
+                            )}
                           </div>
                           <span
                             className={`font-semibold tabular-nums ml-2 shrink-0 ${

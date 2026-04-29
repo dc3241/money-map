@@ -118,16 +118,56 @@ export interface Budget {
   createdAt: string;
 }
 
+export type TransactionCategoryRuleDirection = 'expense' | 'income' | 'any';
+
+export interface TransactionCategoryRuleMatcher {
+  merchantContains?: string;
+  accountId?: string;
+  amountMin?: number;
+  amountMax?: number;
+  direction: TransactionCategoryRuleDirection;
+}
+
+export interface TransactionCategoryOverride {
+  transactionId: string;
+  categoryId: string;
+  source: 'user';
+  updatedAt: unknown;
+}
+
+export interface TransactionCategoryRule {
+  id: string;
+  active: boolean;
+  priority: number;
+  categoryId: string;
+  matcher: TransactionCategoryRuleMatcher;
+  createdAt: unknown;
+  updatedAt: unknown;
+}
+
 // Savings goal types
+export type SavingsGoalMode = 'balance_linked' | 'flow_linked';
+
+export type SavingsMatchRule =
+  | { id: string; kind: 'plaid_category_primary'; value: string }
+  | { id: string; kind: 'merchant_regex'; value: string }
+  | { id: string; kind: 'name_regex'; value: string };
+
 export interface SavingsGoal {
   id: string;
   name: string;
   targetAmount: number;
-  currentAmount: number;
+  mode: SavingsGoalMode;
   targetDate?: string; // Optional target date
-  accountId?: string; // Link to manual budget-store account (offline mode)
   /** Plaid `account_id` when bank-linked; progress uses live balance when set. */
   plaidAccountId?: string;
+  sourcePlaidAccountId?: string; // Optional filter: transaction account_id must match
+  destinationPlaidAccountId?: string; // Reserved for future transfer matching behavior
+  matchRules?: SavingsMatchRule[]; // OR semantics; any rule match counts as contribution
+  includePending?: boolean;
+  // Legacy compatibility fields (read/migrate only)
+  currentAmount?: number;
+  accountId?: string;
   createdAt: string;
 }
 
@@ -153,6 +193,25 @@ export interface DebtPayment {
   description?: string;
   accountId?: string; // Account the payment was made from
   transactionId?: string; // ID of the associated spending transaction
+}
+
+export type DebtGoalType =
+  | 'payoff_by_date'
+  | 'target_balance_by_date'
+  | 'extra_monthly_payment';
+
+export interface DebtGoal {
+  id: string;
+  plaidAccountId: string;
+  goalType: DebtGoalType;
+  targetDate?: string; // YYYY-MM-DD
+  targetBalance?: number;
+  extraMonthlyPayment?: number;
+  startingBalance: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  isArchived?: boolean;
 }
 
 // Support ticket types

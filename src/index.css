@@ -16,6 +16,26 @@ body {
   height: 100vh;
 }
 
+.tech-grid {
+  background-image:
+    linear-gradient(rgba(79, 127, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 127, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(circle at center, black 25%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at center, black 25%, transparent 75%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tech-grid {
+    animation: none !important;
+  }
+
+  .animate-spin,
+  .animate-pulse {
+    animation: none !important;
+  }
+}
+
 /* Safe area support for devices with notches/home indicators */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);

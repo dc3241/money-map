@@ -1,7 +1,14 @@
 import { parseISO, startOfDay } from "date-fns";
 import type { PlaidTransaction } from "../hooks/usePlaidTransactions";
-import type { Budget, Category, Transaction } from "../types";
+import type {
+  Budget,
+  Category,
+  Transaction,
+  TransactionCategoryOverride,
+  TransactionCategoryRule,
+} from "../types";
 import { deriveLegacyBudgetWindow, isDateInWindow } from "./budgetPeriods";
+import { resolvePlaidTransactionCategoryId } from "./plaidTransactionCategorization";
 
 const EXPENSE_CATEGORY_PLAID_PRIMARIES: Record<string, string[]> = {
   "cat-exp-housing": ["RENT_AND_UTILITIES"],
@@ -91,6 +98,8 @@ export function getPlaidBudgetSpending(
   transactions: PlaidTransaction[],
   budget: Budget,
   categories: Category[],
+  overrides: Record<string, TransactionCategoryOverride> = {},
+  rules: TransactionCategoryRule[] = [],
   year: number,
   month?: number
 ): number {
@@ -105,11 +114,19 @@ export function getPlaidBudgetSpending(
     if (startOfDay(parseISO(tx.date)) > today) continue;
     if (tx.pending) continue;
 
+    const fallbackCategoryId = inferFallbackCategoryId(tx, categories);
+    const resolvedCategoryId = resolvePlaidTransactionCategoryId(
+      tx,
+      overrides,
+      rules,
+      fallbackCategoryId
+    );
+
     if (cat.type === "income") {
-      if (matchesIncomeCategory(tx, budget.categoryId)) {
+      if (resolvedCategoryId === budget.categoryId) {
         total += Math.abs(tx.amount);
       }
-    } else if (matchesExpenseCategory(tx, budget.categoryId, cat.name)) {
+    } else if (resolvedCategoryId === budget.categoryId && tx.amount > 0) {
       total += tx.amount;
     }
   }
@@ -121,10 +138,20 @@ export function getPlaidBudgetStatus(
   transactions: PlaidTransaction[],
   budget: Budget,
   categories: Category[],
+  overrides: Record<string, TransactionCategoryOverride> = {},
+  rules: TransactionCategoryRule[] = [],
   year: number,
   month?: number
 ): { limit: number; spent: number; remaining: number; percentage: number } {
-  const spent = getPlaidBudgetSpending(transactions, budget, categories, year, month);
+  const spent = getPlaidBudgetSpending(
+    transactions,
+    budget,
+    categories,
+    overrides,
+    rules,
+    year,
+    month
+  );
   const limit = budget.amount;
   const remaining = limit - spent;
   const percentage = limit > 0 ? (spent / limit) * 100 : 0;
@@ -135,6 +162,8 @@ export function getPlaidBudgetTransactionsAsStoreShape(
   transactions: PlaidTransaction[],
   budget: Budget,
   categories: Category[],
+  overrides: Record<string, TransactionCategoryOverride> = {},
+  rules: TransactionCategoryRule[] = [],
   year: number,
   month?: number
 ): { date: string; transaction: Transaction }[] {
@@ -149,8 +178,17 @@ export function getPlaidBudgetTransactionsAsStoreShape(
     if (startOfDay(parseISO(tx.date)) > today) continue;
     if (tx.pending) continue;
 
+    const fallbackCategoryId = inferFallbackCategoryId(tx, categories);
+    const resolvedCategoryId = resolvePlaidTransactionCategoryId(
+      tx,
+      overrides,
+      rules,
+      fallbackCategoryId
+    );
+    if (resolvedCategoryId !== budget.categoryId) continue;
+
     if (cat.type === "income") {
-      if (!matchesIncomeCategory(tx, budget.categoryId)) continue;
+      if (tx.amount >= 0) continue;
       result.push({
         date: tx.date,
         transaction: {
@@ -158,10 +196,10 @@ export function getPlaidBudgetTransactionsAsStoreShape(
           type: "income",
           amount: Math.abs(tx.amount),
           description: tx.merchant_name ?? tx.name ?? "Income",
-          category: budget.categoryId,
+          category: resolvedCategoryId,
         },
       });
-    } else if (matchesExpenseCategory(tx, budget.categoryId, cat.name)) {
+    } else if (tx.amount > 0) {
       result.push({
         date: tx.date,
         transaction: {
@@ -169,7 +207,7 @@ export function getPlaidBudgetTransactionsAsStoreShape(
           type: "spending",
           amount: tx.amount,
           description: tx.merchant_name ?? tx.name ?? "Purchase",
-          category: budget.categoryId,
+          category: resolvedCategoryId,
         },
       });
     }
@@ -177,4 +215,21 @@ export function getPlaidBudgetTransactionsAsStoreShape(
 
   result.sort((a, b) => a.date.localeCompare(b.date));
   return result;
+}
+
+export function inferFallbackCategoryId(
+  tx: PlaidTransaction,
+  categories: Category[]
+): string | undefined {
+  const candidates = categories.filter((category) =>
+    category.type === "income" ? tx.amount < 0 : tx.amount > 0
+  );
+  for (const category of candidates) {
+    if (category.type === "income") {
+      if (matchesIncomeCategory(tx, category.id)) return category.id;
+    } else if (matchesExpenseCategory(tx, category.id, category.name)) {
+      return category.id;
+    }
+  }
+  return undefined;
 }

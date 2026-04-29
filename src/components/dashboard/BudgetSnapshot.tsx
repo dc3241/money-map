@@ -3,6 +3,8 @@ import { useBudgetStore } from '../../store/useBudgetStore';
 import { format } from 'date-fns';
 import { usePlaidActuals } from '../../context/PlaidActualsContext';
 import { usePlaidYearTransactions } from '../../hooks/usePlaidYearTransactions';
+import { usePlaidTransactionCategoryOverrides } from '../../hooks/usePlaidTransactionCategoryOverrides';
+import { usePlaidTransactionCategoryRules } from '../../hooks/usePlaidTransactionCategoryRules';
 import { getPlaidBudgetStatus } from '../../utils/plaidBudget';
 import { deriveLegacyBudgetWindow } from '../../utils/budgetPeriods';
 import type { Budget } from '../../types';
@@ -21,17 +23,37 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
   const { transactions: plaidYearTxns } = usePlaidYearTransactions(
     usePlaidForActuals ? year : null
   );
+  const { overrides: txCategoryOverrides } = usePlaidTransactionCategoryOverrides();
+  const { rules: txCategoryRules } = usePlaidTransactionCategoryRules();
 
   const resolvedStatus = useMemo(
     () => (budgetId: string) => {
       const b = budgets.find((x) => x.id === budgetId);
       if (!b) return getBudgetStatus(budgetId, year, month);
       if (usePlaidForActuals) {
-        return getPlaidBudgetStatus(plaidYearTxns, b, categories, year, month);
+        return getPlaidBudgetStatus(
+          plaidYearTxns,
+          b,
+          categories,
+          txCategoryOverrides,
+          txCategoryRules,
+          year,
+          month
+        );
       }
       return getBudgetStatus(budgetId, year, month);
     },
-    [budgets, categories, getBudgetStatus, plaidYearTxns, usePlaidForActuals, year, month]
+    [
+      budgets,
+      categories,
+      getBudgetStatus,
+      plaidYearTxns,
+      txCategoryOverrides,
+      txCategoryRules,
+      usePlaidForActuals,
+      year,
+      month,
+    ]
   );
 
   const monthWindow = useMemo(() => {

@@ -82,6 +82,15 @@ function formatAxisCompact(value: number): string {
   return `$${Math.round(value)}`;
 }
 
+const TOP_INSIGHTS_Y_AXIS_WIDTH = 136;
+const TOP_INSIGHTS_CHART_MARGIN = { left: 8, right: 8 };
+
+function truncateCategoryLabel(value: string, maxLength = 15): string {
+  if (!value) return 'Uncategorized';
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
 function addCadence(base: Date, cadence: string): Date {
   const c = cadence.toLowerCase().replace(/[-\s]+/g, '_');
   switch (c) {
@@ -1514,7 +1523,11 @@ const Reporting: React.FC = () => {
               </h3>
               <div className="mt-4 h-[280px] w-full min-w-0 lg:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topSpendingCategories} layout="vertical" margin={{ left: 4, right: 8 }}>
+                  <BarChart
+                    data={topSpendingCategories}
+                    layout="vertical"
+                    margin={TOP_INSIGHTS_CHART_MARGIN}
+                  >
                     <CartesianGrid horizontal={false} stroke={CHART_GRID} />
                     <XAxis
                       type="number"
@@ -1526,7 +1539,8 @@ const Reporting: React.FC = () => {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={130}
+                      width={TOP_INSIGHTS_Y_AXIS_WIDTH}
+                      tickFormatter={truncateCategoryLabel}
                       tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
@@ -1545,7 +1559,11 @@ const Reporting: React.FC = () => {
               <h3 className="font-display text-lg font-semibold text-text-primary">Top income sources</h3>
               <div className="mt-4 h-[280px] w-full min-w-0 lg:h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topIncomeSources} layout="vertical" margin={{ left: 4, right: 8 }}>
+                  <BarChart
+                    data={topIncomeSources}
+                    layout="vertical"
+                    margin={TOP_INSIGHTS_CHART_MARGIN}
+                  >
                     <CartesianGrid horizontal={false} stroke={CHART_GRID} />
                     <XAxis
                       type="number"
@@ -1557,7 +1575,8 @@ const Reporting: React.FC = () => {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={130}
+                      width={TOP_INSIGHTS_Y_AXIS_WIDTH}
+                      tickFormatter={truncateCategoryLabel}
                       tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
@@ -1582,7 +1601,11 @@ const Reporting: React.FC = () => {
             </h3>
             <div className="mt-4 h-[280px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topSpendingCategories} layout="vertical" margin={{ left: 4, right: 8 }}>
+                <BarChart
+                  data={topSpendingCategories}
+                  layout="vertical"
+                  margin={TOP_INSIGHTS_CHART_MARGIN}
+                >
                   <CartesianGrid horizontal={false} stroke={CHART_GRID} />
                   <XAxis
                     type="number"
@@ -1594,7 +1617,8 @@ const Reporting: React.FC = () => {
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={130}
+                    width={TOP_INSIGHTS_Y_AXIS_WIDTH}
+                    tickFormatter={truncateCategoryLabel}
                     tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
@@ -1616,7 +1640,11 @@ const Reporting: React.FC = () => {
             <h3 className="font-display text-lg font-semibold text-text-primary">Top income sources</h3>
             <div className="mt-4 h-[280px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topIncomeSources} layout="vertical" margin={{ left: 4, right: 8 }}>
+                <BarChart
+                  data={topIncomeSources}
+                  layout="vertical"
+                  margin={TOP_INSIGHTS_CHART_MARGIN}
+                >
                   <CartesianGrid horizontal={false} stroke={CHART_GRID} />
                   <XAxis
                     type="number"
@@ -1628,7 +1656,8 @@ const Reporting: React.FC = () => {
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={130}
+                    width={TOP_INSIGHTS_Y_AXIS_WIDTH}
+                    tickFormatter={truncateCategoryLabel}
                     tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}

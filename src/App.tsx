@@ -6,8 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import { useBudgetStore, rehydrateBudgetCache } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
-import { useWalkthroughStore } from './store/useWalkthroughStore';
-import { useWalkthroughAutoComplete } from './hooks/useWalkthroughAutoComplete';
 import { useSessionInactivity } from './hooks/useSessionInactivity';
 import { PlaidActualsProvider } from './context/PlaidActualsContext';
 
@@ -21,14 +19,49 @@ const SavingsGoals = lazy(() => import('./components/SavingsGoals'));
 const DebtTracking = lazy(() => import('./components/DebtTracking'));
 const Login = lazy(() => import('./components/Login'));
 const Home = lazy(() => import('./components/Home'));
-const Walkthrough = lazy(() => import('./components/Walkthrough'));
 const Profile = lazy(() => import('./components/Profile'));
 const AdminPortal = lazy(() => import('./components/AdminPortal'));
 
-// Loading component
-const LoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-bg-app">
-    <div className="text-text-muted">Loading...</div>
+// Full-page loading used during app bootstrap/auth transitions
+const FullPageLoading = () => (
+  <div
+    className="min-h-screen flex items-center justify-center bg-bg-app"
+    role="status"
+    aria-live="polite"
+    aria-label="Loading application content"
+  >
+    <div className="relative flex flex-col items-center gap-4">
+      <div className="relative h-14 w-14" aria-hidden="true">
+        <div className="absolute inset-0 rounded-full border border-border-subtle" />
+        <div className="absolute inset-1 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+        <div className="absolute inset-4 rounded-full bg-accent-glow animate-pulse" />
+      </div>
+      <p className="font-display text-xs uppercase tracking-[0.2em] text-text-secondary">
+        Loading
+      </p>
+    </div>
+  </div>
+);
+
+// Dashboard content-pane loading used for tab switches
+const TabContentLoading = () => (
+  <div
+    className="flex-1 h-full flex items-center justify-center bg-bg-app relative overflow-hidden pb-16 md:pb-0"
+    role="status"
+    aria-live="polite"
+    aria-label="Loading selected dashboard view"
+  >
+    <div className="pointer-events-none absolute inset-0 tech-grid opacity-35" aria-hidden="true" />
+    <div className="relative flex flex-col items-center gap-4 rounded-2xl border border-border-subtle bg-surface-1/60 px-7 py-6 backdrop-blur-sm">
+      <div className="relative h-14 w-14" aria-hidden="true">
+        <div className="absolute inset-0 rounded-full border border-border-subtle" />
+        <div className="absolute inset-1 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+        <div className="absolute inset-4 rounded-full bg-accent-glow animate-pulse" />
+      </div>
+      <p className="font-display text-xs uppercase tracking-[0.22em] text-text-secondary">
+        Syncing module...
+      </p>
+    </div>
   </div>
 );
 
@@ -40,23 +73,13 @@ function Dashboard() {
   const cleanupPastRecurringTransactions = useBudgetStore((state) => state.cleanupPastRecurringTransactions);
   const initializeBudgetData = useBudgetStore((state) => state.initializeBudgetData);
   const { user } = useAuthStore();
-  const initializeWalkthrough = useWalkthroughStore((state) => state.initializeWalkthrough);
-  const isCompleted = useWalkthroughStore((state) => state.isCompleted);
-  const isLoading = useWalkthroughStore((state) => state.isLoading);
-  const hasInitialized = useRef(false);
   const budgetInitialized = useRef(false);
 
   // Reset initialization flag and clear budget data when user logs out
   useEffect(() => {
     if (!user) {
       budgetInitialized.current = false;
-      hasInitialized.current = false;
       useBudgetStore.getState().resetBudgetDataForLogout();
-      // Reset walkthrough state on logout to ensure clean initialization on next login
-      useWalkthroughStore.setState({
-        isLoading: true,
-        isCompleted: false,
-      });
     }
   }, [user]);
 
@@ -69,14 +92,6 @@ function Dashboard() {
     }
   }, [user, initializeBudgetData]);
 
-  // Initialize walkthrough when user is loaded (only once per session)
-  useEffect(() => {
-    if (user && !hasInitialized.current) {
-      hasInitialized.current = true;
-      initializeWalkthrough();
-    }
-  }, [user]); // Removed initializeWalkthrough from deps to prevent re-runs
-
   // Cleanup past recurring transactions once when user loads
   useEffect(() => {
     if (user) {
@@ -86,9 +101,6 @@ function Dashboard() {
       }
     }
   }, [user, cleanupPastRecurringTransactions]);
-
-  // Auto-complete tasks based on user actions
-  useWalkthroughAutoComplete();
 
   // Sign out after 30 minutes of no activity while dashboard is open
   useSessionInactivity();
@@ -133,7 +145,7 @@ function Dashboard() {
 
       {/* Main Content Area — PlaidActualsProvider shares one txn/account subscription across dashboard views */}
       <PlaidActualsProvider>
-        <Suspense fallback={<LoadingSpinner />}>
+        <Suspense fallback={<TabContentLoading />}>
           {currentView === 'dashboard' ? (
             <div className="flex-1 flex flex-col h-full md:ml-0 pb-16 md:pb-0 min-w-0">
               <DashboardOverview
@@ -173,14 +185,6 @@ function Dashboard() {
           )}
         </Suspense>
       </PlaidActualsProvider>
-
-      {/* Walkthrough Overlay */}
-      {!isCompleted && !isLoading && (
-        <Suspense fallback={null}>
-          <Walkthrough currentView={currentView} onNavigate={setCurrentView} />
-        </Suspense>
-      )}
-
       {/* Bottom Navigation (Mobile only) */}
       <BottomNavigation
         currentView={currentView}
@@ -195,7 +199,7 @@ function App() {
   const { user, loading } = useAuthStore();
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <FullPageLoading />;
   }
 
   return (
@@ -204,7 +208,7 @@ function App() {
         <Route 
           path="/" 
           element={
-            <Suspense fallback={<LoadingSpinner />}>
+            <Suspense fallback={<FullPageLoading />}>
               <Home />
             </Suspense>
           } 
@@ -215,7 +219,7 @@ function App() {
             user ? (
               <Navigate to="/dashboard" replace />
             ) : (
-              <Suspense fallback={<LoadingSpinner />}>
+              <Suspense fallback={<FullPageLoading />}>
                 <Login />
               </Suspense>
             )
@@ -233,7 +237,7 @@ function App() {
           path="/admin"
           element={
             <AdminRoute>
-              <Suspense fallback={<LoadingSpinner />}>
+              <Suspense fallback={<FullPageLoading />}>
                 <AdminPortal />
               </Suspense>
             </AdminRoute>

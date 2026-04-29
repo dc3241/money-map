@@ -4,7 +4,7 @@ import { parseISO, isBefore, startOfDay } from 'date-fns';
 import { formatDateKey } from '../utils/dateUtils';
 import { getOccurrencesInMonth, migrateOldRecurringExpense, migrateOldRecurringIncome } from '../utils/recurrenceUtils';
 import { deriveLegacyBudgetWindow, isDateInWindow } from '../utils/budgetPeriods';
-import type { Transaction, DayData, RecurringExpense, RecurringIncome, Account, Category, Budget, SavingsGoal, Debt, DebtPayment } from '../types';
+import type { Transaction, DayData, RecurringExpense, RecurringIncome, Account, Category, Budget, SavingsGoal, Debt, DebtPayment, DebtGoal } from '../types';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuthStore } from './useAuthStore';
@@ -19,6 +19,7 @@ interface StoreState {
   savingsGoals: SavingsGoal[];
   debts: Debt[];
   debtPayments: DebtPayment[];
+  debtGoals: DebtGoal[];
 }
 
 interface StoreActions {
@@ -69,11 +70,14 @@ interface StoreActions {
   };
   getBudgetTransactions: (budgetId: string, year: number, month?: number) => { date: string; transaction: Transaction }[];
   // Savings goals management
-  addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt' | 'currentAmount'>) => void;
+  addSavingsGoal: (goal: Omit<SavingsGoal, 'id' | 'createdAt' | 'currentAmount' | 'accountId'>) => void;
   removeSavingsGoal: (id: string) => void;
   updateSavingsGoal: (id: string, goal: Partial<SavingsGoal>) => void;
-  addToSavingsGoal: (goalId: string, amount: number, date?: string, sourceAccountId?: string) => void;
-  getGoalProgress: (goalId: string) => { current: number; target: number; percentage: number };
+  // Debt goals management
+  addDebtGoal: (goal: Omit<DebtGoal, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateDebtGoal: (id: string, goal: Partial<DebtGoal>) => void;
+  removeDebtGoal: (id: string) => void;
+  getDebtGoalByPlaidAccountId: (plaidAccountId: string) => DebtGoal | undefined;
   // Debt management
   addDebt: (debt: Omit<Debt, 'id' | 'createdAt'>) => void;
   removeDebt: (id: string) => void;
@@ -155,6 +159,23 @@ function migrateOldData(state: any): any {
   
   if (!newState.savingsGoals) {
     newState.savingsGoals = [];
+  } else if (Array.isArray(newState.savingsGoals)) {
+    newState.savingsGoals = newState.savingsGoals.map((goal: any) => {
+      const targetAmount = Number(goal?.targetAmount);
+      return {
+        ...goal,
+        targetAmount: Number.isFinite(targetAmount) ? targetAmount : 0,
+        createdAt: goal?.createdAt || new Date().toISOString(),
+        mode: goal?.mode
+          ? goal.mode
+          : goal?.plaidAccountId
+            ? 'balance_linked'
+            : 'flow_linked',
+        includePending:
+          typeof goal?.includePending === 'boolean' ? goal.includePending : false,
+        matchRules: Array.isArray(goal?.matchRules) ? goal.matchRules : [],
+      };
+    });
   }
   
   if (!newState.debts) {
@@ -163,6 +184,10 @@ function migrateOldData(state: any): any {
   
   if (!newState.debtPayments) {
     newState.debtPayments = [];
+  }
+
+  if (!newState.debtGoals) {
+    newState.debtGoals = [];
   }
 
   // Migrate old recurring expenses format
@@ -259,6 +284,7 @@ export function rehydrateBudgetCache(uid: string): void {
       savingsGoals: migrated.savingsGoals ?? [],
       debts: migrated.debts ?? [],
       debtPayments: migrated.debtPayments ?? [],
+      debtGoals: migrated.debtGoals ?? [],
     });
   } catch {
     // Ignore corrupt or old cache
@@ -297,6 +323,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       savingsGoals: [],
       debts: [],
       debtPayments: [],
+      debtGoals: [],
 
       addTransaction: (date: string, transaction: Transaction) => {
         set((state) => {
@@ -1551,7 +1578,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         const newGoal: SavingsGoal = {
           ...goal,
           id: `goal-${Date.now()}-${Math.random()}`,
-          currentAmount: 0,
+          includePending: goal.includePending ?? false,
+          matchRules: goal.matchRules ?? [],
           createdAt: new Date().toISOString(),
         };
         set((state) => ({
@@ -1570,65 +1598,58 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       updateSavingsGoal: (id, goal) => {
         set((state) => ({
           savingsGoals: state.savingsGoals.map((g) =>
-            g.id === id ? { ...g, ...goal } : g
-          ),
-        }));
-        setTimeout(() => get().saveToFirestore(), 0);
-      },
-
-      addToSavingsGoal: (goalId, amount, date, sourceAccountId) => {
-        const state = get();
-        const goal = state.savingsGoals.find((g) => g.id === goalId);
-        if (!goal) return;
-        
-        const contributionDate = date || new Date().toISOString().split('T')[0];
-        
-        // Create transaction if source account is provided
-        if (sourceAccountId) {
-          if (goal.accountId) {
-            // Goal has a target account: create a transfer from source to target
-            get().transferBetweenAccounts(
-              contributionDate,
-              sourceAccountId,
-              goal.accountId,
-              amount,
-              `Savings goal: ${goal.name}`
-            );
-          } else {
-            // Goal doesn't have a target account: create a spending transaction
-            const transaction: Transaction = {
-              id: `savings-goal-${goalId}-${Date.now()}-${Math.random()}`,
-              type: 'spending',
-              amount,
-              description: `Savings goal: ${goal.name}`,
-              accountId: sourceAccountId,
-            };
-            get().addTransaction(contributionDate, transaction);
-          }
-        }
-        
-        // Update goal amount
-        set((state) => ({
-          savingsGoals: state.savingsGoals.map((g) =>
-            g.id === goalId
-              ? { ...g, currentAmount: g.currentAmount + amount }
+            g.id === id
+              ? {
+                  ...g,
+                  ...goal,
+                  includePending:
+                    goal.includePending === undefined ? g.includePending : goal.includePending,
+                  matchRules: goal.matchRules ?? g.matchRules ?? [],
+                }
               : g
           ),
         }));
         setTimeout(() => get().saveToFirestore(), 0);
       },
 
-      getGoalProgress: (goalId) => {
-        const state = get();
-        const goal = state.savingsGoals.find((g) => g.id === goalId);
-        if (!goal) {
-          return { current: 0, target: 0, percentage: 0 };
-        }
-        return {
-          current: goal.currentAmount,
-          target: goal.targetAmount,
-          percentage: goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0,
+      addDebtGoal: (goal) => {
+        const newGoal: DebtGoal = {
+          ...goal,
+          id: `debt-goal-${Date.now()}-${Math.random()}`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
+        set((state) => ({
+          debtGoals: [...state.debtGoals, newGoal],
+        }));
+        setTimeout(() => get().saveToFirestore(), 0);
+      },
+
+      updateDebtGoal: (id, goal) => {
+        set((state) => ({
+          debtGoals: state.debtGoals.map((g) =>
+            g.id === id
+              ? {
+                  ...g,
+                  ...goal,
+                  updatedAt: new Date().toISOString(),
+                }
+              : g
+          ),
+        }));
+        setTimeout(() => get().saveToFirestore(), 0);
+      },
+
+      removeDebtGoal: (id) => {
+        set((state) => ({
+          debtGoals: state.debtGoals.filter((g) => g.id !== id),
+        }));
+        setTimeout(() => get().saveToFirestore(), 0);
+      },
+
+      getDebtGoalByPlaidAccountId: (plaidAccountId) => {
+        const state = get();
+        return state.debtGoals.find((goal) => goal.plaidAccountId === plaidAccountId && !goal.isArchived);
       },
 
       // Debt management
@@ -1819,7 +1840,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                                 (budgetData.recurringIncome && budgetData.recurringIncome.length > 0) ||
                                 (budgetData.budgets && budgetData.budgets.length > 0) ||
                                 (budgetData.savingsGoals && budgetData.savingsGoals.length > 0) ||
-                                (budgetData.debts && budgetData.debts.length > 0);
+                                (budgetData.debts && budgetData.debts.length > 0) ||
+                                (budgetData.debtGoals && budgetData.debtGoals.length > 0);
               
               if (hasFirestoreData) {
                 firestoreData = budgetData;
@@ -1840,6 +1862,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               savingsGoals: migratedData.savingsGoals || [],
               debts: migratedData.debts || [],
               debtPayments: migratedData.debtPayments || [],
+              debtGoals: migratedData.debtGoals || [],
               isLoading: false,
               isInitialized: true,
             });
@@ -1854,7 +1877,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                                        (currentState.recurringIncome && currentState.recurringIncome.length > 0) ||
                                        (currentState.budgets && currentState.budgets.length > 0) ||
                                        (currentState.savingsGoals && currentState.savingsGoals.length > 0) ||
-                                       (currentState.debts && currentState.debts.length > 0);
+                                       (currentState.debts && currentState.debts.length > 0) ||
+                                       (currentState.debtGoals && currentState.debtGoals.length > 0);
             
             if (currentStateHasData) {
               try {
@@ -1874,6 +1898,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                   savingsGoals: migratedState.savingsGoals || [],
                   debts: migratedState.debts || [],
                   debtPayments: migratedState.debtPayments || [],
+                  debtGoals: migratedState.debtGoals || [],
                 };
                 
                 // Try updateDoc first (if doc exists), fallback to setDoc with merge
@@ -1953,6 +1978,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                         savingsGoals: migratedState.savingsGoals || [],
                         debts: migratedState.debts || [],
                         debtPayments: migratedState.debtPayments || [],
+                        debtGoals: migratedState.debtGoals || [],
                       },
                       budgetDataMigratedAt: new Date().toISOString(),
                       createdAt: new Date().toISOString(),
@@ -1968,6 +1994,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                       savingsGoals: migratedState.savingsGoals || [],
                       debts: migratedState.debts || [],
                       debtPayments: migratedState.debtPayments || [],
+                      debtGoals: migratedState.debtGoals || [],
                       isLoading: false,
                       isInitialized: true,
                     });
@@ -1986,6 +2013,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                         savingsGoals: [],
                         debts: [],
                         debtPayments: [],
+                        debtGoals: [],
                       },
                       createdAt: new Date().toISOString(),
                     }, { merge: true });
@@ -2005,6 +2033,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                       savingsGoals: [],
                       debts: [],
                       debtPayments: [],
+                      debtGoals: [],
                     },
                     createdAt: new Date().toISOString(),
                   }, { merge: true });
@@ -2023,6 +2052,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                     savingsGoals: [],
                     debts: [],
                     debtPayments: [],
+                    debtGoals: [],
                   },
                   createdAt: new Date().toISOString(),
                 }, { merge: true });
@@ -2071,6 +2101,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
                 savingsGoals: state.savingsGoals,
                 debts: state.debts,
                 debtPayments: state.debtPayments,
+                debtGoals: state.debtGoals,
               },
               budgetDataUpdatedAt: new Date().toISOString(),
             }, { merge: true });
@@ -2091,6 +2122,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
           savingsGoals: [],
           debts: [],
           debtPayments: [],
+          debtGoals: [],
           isLoading: false,
           isInitialized: false,
         });
@@ -2109,6 +2141,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         savingsGoals: state.savingsGoals,
         debts: state.debts,
         debtPayments: state.debtPayments,
+        debtGoals: state.debtGoals,
       }),
       skipHydration: true, // Rehydrate only after user is known; Firestore is source of truth
     }
