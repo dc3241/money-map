@@ -22,11 +22,13 @@ import type {
 } from "plaid";
 import {getFirestore} from "firebase-admin/firestore";
 import {initializeApp} from "firebase-admin/app";
+import Anthropic from "@anthropic-ai/sdk";
 
 initializeApp();
 
 const plaidClientId = defineSecret("PLAID_CLIENT_ID");
 const plaidSecret = defineSecret("PLAID_SECRET");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 const plaidSecrets = [plaidClientId, plaidSecret];
 
@@ -114,6 +116,7 @@ const RATE_LIMITS: Record<string, RateLimitSpec> = {
   syncPlaidInsights: {maxRequests: 20, windowMs: 60 * 60 * 1000},
   disconnectPlaid: {maxRequests: 10, windowMs: 60 * 60 * 1000},
   deleteUserData: {maxRequests: 5, windowMs: 60 * 60 * 1000},
+  moneyCoachChat: {maxRequests: 50, windowMs: 60 * 60 * 1000},
 };
 
 /**
@@ -824,5 +827,155 @@ export const deleteUserData = onCall(
 
     await db.recursiveDelete(db.doc(`users/${uid}`));
     return {success: true};
+  }
+);
+
+const MONEY_COACH_MODEL = "claude-3-5-haiku-latest";
+
+const MONEY_COACH_SYSTEM = [
+  "You are Money Coach in the Money Map personal budgeting app.",
+  "You help users interpret their own snapshot data, build habits, " +
+    "and think through tradeoffs.",
+  "Rules: Be concise and supportive. Do not invent balances or " +
+    "transactions; only use the JSON snapshot and the conversation.",
+  "Do not ask for bank passwords, full card numbers, or government IDs.",
+  "You give general education and ideas, not personalized tax, legal, " +
+    "or investment advice. Remind users to verify important numbers in " +
+    "the app.",
+  "Prefer short paragraphs or bullet lists. Use US dollars when " +
+    "discussing amounts from the snapshot.",
+].join(" ");
+
+type CoachMsg = {role: "user" | "assistant"; content: string};
+
+/**
+ * Coalesces adjacent same-role segments (Anthropic expects alternating roles).
+ * @param {unknown} raw Client-supplied message list.
+ * @return {CoachMsg[]} Normalized messages.
+ */
+function normalizeCoachMessages(raw: unknown): CoachMsg[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CoachMsg[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const role = (item as {role?: unknown}).role;
+    const content = (item as {content?: unknown}).content;
+    if (role !== "user" && role !== "assistant") continue;
+    if (typeof content !== "string") continue;
+    const trimmed = content.trim();
+    if (!trimmed) continue;
+    if (trimmed.length > 8000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Message too long."
+      );
+    }
+    const last = out[out.length - 1];
+    if (last && last.role === role) {
+      last.content = `${last.content}\n\n${trimmed}`;
+    } else {
+      out.push({role, content: trimmed});
+    }
+  }
+  return out;
+}
+
+/**
+ * Callable: Anthropic-powered budgeting tips using a client-provided snapshot.
+ */
+export const moneyCoachChat = onCall(
+  {
+    secrets: [anthropicApiKey],
+    invoker: "public",
+    cors: true,
+    enforceAppCheck: true,
+  },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    }
+    await enforceRateLimit(uid, "moneyCoachChat");
+
+    const snapshot = request.data?.snapshot;
+    if (!snapshot || typeof snapshot !== "object") {
+      throw new HttpsError("invalid-argument", "Missing snapshot.");
+    }
+    const snapJson = JSON.stringify(snapshot);
+    if (snapJson.length > 120000) {
+      throw new HttpsError("invalid-argument", "Snapshot too large.");
+    }
+
+    const messages = normalizeCoachMessages(request.data?.messages);
+    if (messages.length === 0) {
+      throw new HttpsError("invalid-argument", "Missing messages.");
+    }
+    if (messages.length > 24) {
+      throw new HttpsError("invalid-argument", "Too many messages.");
+    }
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "user") {
+      throw new HttpsError(
+        "invalid-argument",
+        "Last message must be from the user."
+      );
+    }
+
+    const apiKey = anthropicApiKey.value();
+    if (!apiKey) {
+      logger.error("moneyCoachChat missing ANTHROPIC_API_KEY secret");
+      throw new HttpsError(
+        "failed-precondition",
+        "Coach is not configured yet."
+      );
+    }
+
+    const anthropic = new Anthropic({apiKey});
+
+    const anthropicMessages: Anthropic.MessageParam[] = [];
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      const isLast = i === messages.length - 1;
+      if (m.role === "user" && isLast) {
+        anthropicMessages.push({
+          role: "user",
+          content: [
+            {type: "text", text: `Financial snapshot (JSON):\n${snapJson}`},
+            {type: "text", text: m.content},
+          ],
+        });
+      } else {
+        anthropicMessages.push({role: m.role, content: m.content});
+      }
+    }
+
+    try {
+      const response = await anthropic.messages.create({
+        model: MONEY_COACH_MODEL,
+        max_tokens: 1200,
+        system: MONEY_COACH_SYSTEM,
+        messages: anthropicMessages,
+      });
+      const text = response.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as {text: string}).text)
+        .join("\n")
+        .trim();
+      if (!text) {
+        throw new HttpsError("internal", "Empty model response.");
+      }
+      return {reply: text};
+    } catch (err: unknown) {
+      if (err instanceof HttpsError) {
+        throw err;
+      }
+      logger.error("moneyCoachChat Anthropic error", {
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      throw new HttpsError(
+        "internal",
+        "Coach request failed. Please try again."
+      );
+    }
   }
 );

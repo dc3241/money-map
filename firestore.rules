@@ -113,6 +113,29 @@ service cloud.firestore {
       }
 
       // Merchant / pattern rules for default Plaid transaction → app category mapping
+      // Money Coach chat persistence (primary thread + messages)
+      match /assistantThreads/{threadId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && threadId.size() > 0 && threadId.size() <= 64
+          && request.resource.data.keys().hasOnly(["updatedAt"])
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+
+        match /messages/{messageId} {
+          allow read: if request.auth != null && request.auth.uid == userId;
+          allow create: if request.auth != null && request.auth.uid == userId
+            && request.resource.data.keys().hasOnly(["role", "content", "createdAt"])
+            && request.resource.data.role in ["user", "assistant"]
+            && request.resource.data.content is string
+            && request.resource.data.content.size() > 0
+            && request.resource.data.content.size() <= 12000
+            && request.resource.data.createdAt is timestamp;
+          allow delete: if request.auth != null && request.auth.uid == userId;
+          allow update: if false;
+        }
+      }
+
       match /transactionCategoryRules/{ruleId} {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null

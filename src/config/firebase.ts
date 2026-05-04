@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import type { MoneyMapContextSnapshot } from "../assistant/moneyMapSnapshot";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -50,4 +51,15 @@ export const disconnectPlaid = httpsCallable<unknown, { success: boolean; remove
   "disconnectPlaid"
 );
 export const deleteUserData = httpsCallable<unknown, { success: boolean }>(functions, "deleteUserData");
+
+export type MoneyCoachChatRequest = {
+  snapshot: MoneyMapContextSnapshot;
+  messages: { role: "user" | "assistant"; content: string }[];
+};
+
+export const moneyCoachChat = httpsCallable<MoneyCoachChatRequest, { reply: string }>(
+  functions,
+  "moneyCoachChat"
+);
+
 export default app;

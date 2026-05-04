@@ -12,6 +12,8 @@ import { useAuthStore } from './store/useAuthStore';
 import { useSessionInactivity } from './hooks/useSessionInactivity';
 import { usePlaidBackgroundSync } from './hooks/usePlaidBackgroundSync';
 import { PlaidActualsProvider } from './context/PlaidActualsContext';
+import { MoneyCoachProvider } from './context/MoneyCoachContext';
+import MoneyCoachHost from './components/assistant/MoneyCoachHost';
 
 // Lazy load components that aren't immediately needed
 const DashboardOverview = lazy(() => import('./components/dashboard/DashboardOverview'));
@@ -152,6 +154,7 @@ function Dashboard() {
       />
 
       {/* Main Content Area — PlaidActualsProvider shares one txn/account subscription across dashboard views */}
+      <MoneyCoachProvider>
       <PlaidActualsProvider>
         <Suspense fallback={<TabContentLoading />}>
           {currentView === 'dashboard' ? (
@@ -194,7 +197,9 @@ function Dashboard() {
         </Suspense>
         <GuidedTour userId={user?.uid} currentView={currentView} run={tourRun} onRunChange={setTourRun} />
         <TourHelpButton onReplayTour={() => setTourRun(true)} />
+        <MoneyCoachHost />
       </PlaidActualsProvider>
+      </MoneyCoachProvider>
       {/* Bottom Navigation (Mobile only) */}
       <BottomNavigation
         currentView={currentView}

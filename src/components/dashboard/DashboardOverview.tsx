@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { getWeekRange } from '../../utils/dateUtils';
+import React, { useState, useMemo, useEffect } from 'react';
+import { getWeekRange, formatDateKey } from '../../utils/dateUtils';
 import { useBudgetStore } from '../../store/useBudgetStore';
 import { usePlaidActuals } from '../../context/PlaidActualsContext';
+import { useMoneyCoachOptional } from '../../context/MoneyCoachContext';
 import { PlaidRangeTransactionsProvider, usePlaidRangeTransactionsState } from '../../context/PlaidRangeTransactionsContext';
 import { plaidWeeklyTotal, plaidMonthlyTotal } from '../../utils/plaidAggregates';
 import DashboardHeader, { type ViewMode } from './DashboardHeader';
@@ -13,6 +14,7 @@ import DebtPayoffSnapshot from './DebtPayoffSnapshot';
 import RecentTransactions from './RecentTransactions';
 import UpcomingRecurring from './UpcomingRecurring';
 import MonthSummaryCard from './MonthSummaryCard';
+import DashboardCoachInsights from '../assistant/DashboardCoachInsights';
 
 interface DashboardOverviewProps {
   currentDate: Date;
@@ -30,12 +32,14 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
   const { transactions: plaidTransactions, accountTypeByAccountId } =
     usePlaidRangeTransactionsState();
   const { usePlaidForActuals } = usePlaidActuals();
-  const getWeeklyTotal = useBudgetStore((state) => state.getWeeklyTotal);
-  const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
+  const moneyCoach = useMoneyCoachOptional();
 
   const weekRange = getWeekRange(currentDate);
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
+
+  const getWeeklyTotal = useBudgetStore((state) => state.getWeeklyTotal);
+  const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
 
   const plaidWeekly = useMemo(
     () =>
@@ -64,6 +68,40 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
       ),
     [plaidTransactions, year, month, usePlaidForActuals, accountTypeByAccountId]
   );
+
+  useEffect(() => {
+    if (!moneyCoach) return;
+    if (usePlaidForActuals) {
+      moneyCoach.setDashboardPlaidOverlay({
+        year,
+        month,
+        weekStartKey: formatDateKey(weekRange.start),
+        monthly: {
+          income: plaidMonthly.income,
+          spending: plaidMonthly.spending,
+          profit: plaidMonthly.profit,
+        },
+        weekly: {
+          income: plaidWeekly.income,
+          spending: plaidWeekly.spending,
+          profit: plaidWeekly.profit,
+        },
+      });
+    } else {
+      moneyCoach.setDashboardPlaidOverlay(null);
+    }
+    return () => {
+      moneyCoach.setDashboardPlaidOverlay(null);
+    };
+  }, [
+    moneyCoach,
+    usePlaidForActuals,
+    year,
+    month,
+    weekRange.start,
+    plaidMonthly,
+    plaidWeekly,
+  ]);
 
   const weekly = usePlaidForActuals ? plaidWeekly : getWeeklyTotal(weekRange.start, weekRange.end);
   const monthly = usePlaidForActuals ? plaidMonthly : getMonthlyTotal(year, month);
@@ -115,6 +153,8 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
             positive={viewMode === 'week' ? weekly.profit > 0 : monthly.profit > 0}
           />
         </div>
+
+        <DashboardCoachInsights currentDate={currentDate} />
 
         {/* Main content: week grid + sidebar cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
