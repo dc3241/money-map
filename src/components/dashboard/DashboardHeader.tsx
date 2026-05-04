@@ -42,7 +42,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       : format(currentDate, 'MMMM yyyy');
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 px-3 md:px-4 border-b border-border-subtle bg-bg-app flex-shrink-0">
+    <div
+      data-tour="tour-dashboard-header"
+      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 px-3 md:px-4 border-b border-border-subtle bg-bg-app flex-shrink-0"
+    >
       <h1 className="text-lg md:text-xl font-semibold text-text-primary truncate">
         Overview Dashboard
       </h1>

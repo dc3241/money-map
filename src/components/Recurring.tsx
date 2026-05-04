@@ -676,7 +676,7 @@ const Recurring: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-bg-app">
+    <div data-tour="tour-recurring-intro" className="flex-1 overflow-y-auto p-6 bg-bg-app">
       <h1 className="text-3xl font-semibold text-text-primary mb-2">Recurring Expenses & Income</h1>
       <p className="text-text-muted text-sm mb-6">Manage recurring bills, income, and schedules.</p>
       
@@ -684,7 +684,7 @@ const Recurring: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recurring Expenses Section */}
-        <div className="bg-surface-1 rounded-xl p-6 border border-border-subtle">
+        <div data-tour="tour-recurring-expenses" className="bg-surface-1 rounded-xl p-6 border border-border-subtle">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold text-text-primary">Recurring Expenses</h2>
             <button
@@ -788,7 +788,7 @@ const Recurring: React.FC = () => {
         </div>
 
         {/* Recurring Income Section */}
-        <div className="bg-surface-1 rounded-xl p-6 border border-border-subtle">
+        <div data-tour="tour-recurring-income" className="bg-surface-1 rounded-xl p-6 border border-border-subtle">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold text-text-primary">Recurring Income</h2>
             <button

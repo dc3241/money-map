@@ -275,16 +275,8 @@ export function rehydrateBudgetCache(uid: string): void {
     if (!parsed?.state) return;
     const migrated = migrateOldData(parsed.state);
     useBudgetStore.setState({
-      days: migrated.days ?? {},
-      recurringExpenses: migrated.recurringExpenses ?? [],
-      recurringIncome: migrated.recurringIncome ?? [],
-      accounts: migrated.accounts ?? [],
+      // Keep local cache low-risk by only restoring custom categories.
       categories: migrated.categories ?? useBudgetStore.getState().categories,
-      budgets: migrated.budgets ?? [],
-      savingsGoals: migrated.savingsGoals ?? [],
-      debts: migrated.debts ?? [],
-      debtPayments: migrated.debtPayments ?? [],
-      debtGoals: migrated.debtGoals ?? [],
     });
   } catch {
     // Ignore corrupt or old cache
@@ -2132,16 +2124,8 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
       name: CACHE_KEY_PREFIX,
       storage: createJSONStorage(getUserScopedStorage),
       partialize: (state) => ({
-        days: state.days,
-        recurringExpenses: state.recurringExpenses,
-        recurringIncome: state.recurringIncome,
-        accounts: state.accounts,
+        // Persist only low-sensitivity customization data.
         categories: state.categories,
-        budgets: state.budgets,
-        savingsGoals: state.savingsGoals,
-        debts: state.debts,
-        debtPayments: state.debtPayments,
-        debtGoals: state.debtGoals,
       }),
       skipHydration: true, // Rehydrate only after user is known; Firestore is source of truth
     }

@@ -159,7 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isMobileMe
           </g>
         </svg>
       </div>
-      <nav className="flex flex-col space-y-3 w-full px-2">
+      <nav data-tour="tour-sidebar-nav" className="flex flex-col space-y-3 w-full px-2">
         {menuItems.map((item) => (
           <button
             key={item.id}

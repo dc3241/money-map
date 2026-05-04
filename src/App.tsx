@@ -1,4 +1,7 @@
 import { useState, useEffect, lazy, Suspense, useRef } from 'react';
+import GuidedTour from './components/tour/GuidedTour';
+import { useTourAutoStart } from './hooks/useTourAutoStart';
+import TourHelpButton from './components/tour/TourHelpButton';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import BottomNavigation from './components/BottomNavigation';
@@ -7,6 +10,7 @@ import AdminRoute from './components/AdminRoute';
 import { useBudgetStore, rehydrateBudgetCache } from './store/useBudgetStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useSessionInactivity } from './hooks/useSessionInactivity';
+import { usePlaidBackgroundSync } from './hooks/usePlaidBackgroundSync';
 import { PlaidActualsProvider } from './context/PlaidActualsContext';
 
 // Lazy load components that aren't immediately needed
@@ -74,6 +78,10 @@ function Dashboard() {
   const initializeBudgetData = useBudgetStore((state) => state.initializeBudgetData);
   const { user } = useAuthStore();
   const budgetInitialized = useRef(false);
+  const [tourRun, setTourRun] = useState(false);
+
+  useTourAutoStart(user?.uid, currentView, setTourRun);
+  usePlaidBackgroundSync(user?.uid);
 
   // Reset initialization flag and clear budget data when user logs out
   useEffect(() => {
@@ -184,6 +192,8 @@ function Dashboard() {
             </div>
           )}
         </Suspense>
+        <GuidedTour userId={user?.uid} currentView={currentView} run={tourRun} onRunChange={setTourRun} />
+        <TourHelpButton onReplayTour={() => setTourRun(true)} />
       </PlaidActualsProvider>
       {/* Bottom Navigation (Mobile only) */}
       <BottomNavigation

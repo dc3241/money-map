@@ -61,7 +61,9 @@ const SavingsGoals: React.FC = () => {
   const [newGoalRules, setNewGoalRules] = useState<SavingsMatchRule[]>([
     { id: `rule-${Date.now()}`, kind: 'name_regex', value: '' },
   ]);
-  
+  const [addGoalError, setAddGoalError] = useState('');
+  const [editGoalError, setEditGoalError] = useState('');
+
   // Edit goal states
   const [editGoalName, setEditGoalName] = useState('');
   const [editGoalTarget, setEditGoalTarget] = useState('');
@@ -73,40 +75,58 @@ const SavingsGoals: React.FC = () => {
   const [editGoalRules, setEditGoalRules] = useState<SavingsMatchRule[]>([]);
   
   const handleAddGoal = () => {
+    setAddGoalError('');
     const target = parseFloat(newGoalTarget);
     const hasRule = newGoalRules.some((rule) => rule.value.trim());
     const needsBalanceAccount = newGoalMode === 'balance_linked' && !newGoalPlaidAccount;
     const needsFlowRule = newGoalMode === 'flow_linked' && !hasRule;
-    if (newGoalName.trim() && target > 0 && !needsBalanceAccount && !needsFlowRule) {
-      addSavingsGoal({
-        name: newGoalName.trim(),
-        targetAmount: target,
-        targetDate: newGoalDate || undefined,
-        mode: newGoalMode,
-        plaidAccountId: newGoalPlaidAccount || undefined,
-        sourcePlaidAccountId:
-          newGoalMode === 'flow_linked' ? newGoalSourcePlaidAccount || undefined : undefined,
-        includePending: newGoalMode === 'flow_linked' ? newGoalIncludePending : false,
-        matchRules:
-          newGoalMode === 'flow_linked'
-            ? newGoalRules.filter((rule) => rule.value.trim())
-            : [],
-      });
-      setNewGoalName('');
-      setNewGoalTarget('');
-      setNewGoalDate('');
-      setNewGoalMode('balance_linked');
-      setNewGoalPlaidAccount('');
-      setNewGoalSourcePlaidAccount('');
-      setNewGoalIncludePending(false);
-      setNewGoalRules([{ id: `rule-${Date.now()}`, kind: 'name_regex', value: '' }]);
-      setShowAddModal(false);
+
+    if (!newGoalName.trim()) {
+      setAddGoalError('Please enter a goal name.');
+      return;
     }
+    if (!Number.isFinite(target) || target <= 0) {
+      setAddGoalError('Please enter a target amount greater than zero.');
+      return;
+    }
+    if (needsBalanceAccount) {
+      setAddGoalError('Select a linked bank account for live balance mode, or switch to Plaid transaction flow.');
+      return;
+    }
+    if (needsFlowRule) {
+      setAddGoalError('Add at least one matching rule and fill in its value for Plaid transaction flow.');
+      return;
+    }
+
+    addSavingsGoal({
+      name: newGoalName.trim(),
+      targetAmount: target,
+      targetDate: newGoalDate || undefined,
+      mode: newGoalMode,
+      plaidAccountId: newGoalPlaidAccount || undefined,
+      sourcePlaidAccountId:
+        newGoalMode === 'flow_linked' ? newGoalSourcePlaidAccount || undefined : undefined,
+      includePending: newGoalMode === 'flow_linked' ? newGoalIncludePending : false,
+      matchRules:
+        newGoalMode === 'flow_linked'
+          ? newGoalRules.filter((rule) => rule.value.trim())
+          : [],
+    });
+    setNewGoalName('');
+    setNewGoalTarget('');
+    setNewGoalDate('');
+    setNewGoalMode('balance_linked');
+    setNewGoalPlaidAccount('');
+    setNewGoalSourcePlaidAccount('');
+    setNewGoalIncludePending(false);
+    setNewGoalRules([{ id: `rule-${Date.now()}`, kind: 'name_regex', value: '' }]);
+    setShowAddModal(false);
   };
 
   const handleEditGoal = (goalId: string) => {
     const goal = goals.find(g => g.id === goalId);
     if (goal) {
+      setEditGoalError('');
       setEditingGoalId(goalId);
       setEditGoalName(goal.name);
       setEditGoalTarget(goal.targetAmount.toString());
@@ -126,36 +146,53 @@ const SavingsGoals: React.FC = () => {
 
   const handleUpdateGoal = () => {
     if (!editingGoalId) return;
+    setEditGoalError('');
     const target = parseFloat(editGoalTarget);
     const hasRule = editGoalRules.some((rule) => rule.value.trim());
     const needsBalanceAccount = editGoalMode === 'balance_linked' && !editGoalPlaidAccount;
     const needsFlowRule = editGoalMode === 'flow_linked' && !hasRule;
-    if (editGoalName.trim() && target > 0 && !needsBalanceAccount && !needsFlowRule) {
-      updateSavingsGoal(editingGoalId, {
-        name: editGoalName.trim(),
-        targetAmount: target,
-        targetDate: editGoalDate || undefined,
-        mode: editGoalMode,
-        plaidAccountId: editGoalPlaidAccount || undefined,
-        sourcePlaidAccountId:
-          editGoalMode === 'flow_linked' ? editGoalSourcePlaidAccount || undefined : undefined,
-        includePending: editGoalMode === 'flow_linked' ? editGoalIncludePending : false,
-        matchRules:
-          editGoalMode === 'flow_linked'
-            ? editGoalRules.filter((rule) => rule.value.trim())
-            : [],
-      });
-      setShowEditModal(false);
-      setEditingGoalId(null);
-      setEditGoalName('');
-      setEditGoalTarget('');
-      setEditGoalDate('');
-      setEditGoalMode('balance_linked');
-      setEditGoalPlaidAccount('');
-      setEditGoalSourcePlaidAccount('');
-      setEditGoalIncludePending(false);
-      setEditGoalRules([]);
+
+    if (!editGoalName.trim()) {
+      setEditGoalError('Please enter a goal name.');
+      return;
     }
+    if (!Number.isFinite(target) || target <= 0) {
+      setEditGoalError('Please enter a target amount greater than zero.');
+      return;
+    }
+    if (needsBalanceAccount) {
+      setEditGoalError('Select a linked bank account for live balance mode, or switch to Plaid transaction flow.');
+      return;
+    }
+    if (needsFlowRule) {
+      setEditGoalError('Add at least one matching rule and fill in its value for Plaid transaction flow.');
+      return;
+    }
+
+    updateSavingsGoal(editingGoalId, {
+      name: editGoalName.trim(),
+      targetAmount: target,
+      targetDate: editGoalDate || undefined,
+      mode: editGoalMode,
+      plaidAccountId: editGoalPlaidAccount || undefined,
+      sourcePlaidAccountId:
+        editGoalMode === 'flow_linked' ? editGoalSourcePlaidAccount || undefined : undefined,
+      includePending: editGoalMode === 'flow_linked' ? editGoalIncludePending : false,
+      matchRules:
+        editGoalMode === 'flow_linked'
+          ? editGoalRules.filter((rule) => rule.value.trim())
+          : [],
+    });
+    setShowEditModal(false);
+    setEditingGoalId(null);
+    setEditGoalName('');
+    setEditGoalTarget('');
+    setEditGoalDate('');
+    setEditGoalMode('balance_linked');
+    setEditGoalPlaidAccount('');
+    setEditGoalSourcePlaidAccount('');
+    setEditGoalIncludePending(false);
+    setEditGoalRules([]);
   };
   
   const formatCurrency = (amount: number) => {
@@ -191,7 +228,7 @@ const SavingsGoals: React.FC = () => {
       <div className="max-w-7xl mx-auto p-6 md:p-8">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div data-tour="tour-goals-header" className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Savings Goals
@@ -203,7 +240,10 @@ const SavingsGoals: React.FC = () => {
               </p>
             </div>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setAddGoalError('');
+                setShowAddModal(true);
+              }}
               className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 flex items-center gap-2"
             >
               <span className="text-xl">+</span>
@@ -231,6 +271,7 @@ const SavingsGoals: React.FC = () => {
         </div>
         
         {/* Goals Grid */}
+        <div data-tour="tour-goals-grid">
         {goals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {goals.map((goal) => {
@@ -361,7 +402,10 @@ const SavingsGoals: React.FC = () => {
                 Create your first savings goal and watch your progress grow. Every milestone counts!
               </p>
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={() => {
+                  setAddGoalError('');
+                  setShowAddModal(true);
+                }}
                 className="px-8 py-4 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 text-lg"
               >
                 Create Your First Goal
@@ -369,17 +413,22 @@ const SavingsGoals: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
         
         {/* Add Goal Modal */}
         {showAddModal && (
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowAddModal(false)}
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setAddGoalError('');
+              setShowAddModal(false);
+            }}
           >
-            <div 
-              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="flex min-h-full items-center justify-center p-4">
+              <div
+                className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md max-h-[min(90vh,calc(100dvh-2rem))] overflow-y-auto shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
               <h2 className="text-2xl font-semibold text-text-primary mb-6">
                 Create Savings Goal
               </h2>
@@ -504,7 +553,7 @@ const SavingsGoals: React.FC = () => {
                         </button>
                       </div>
                       {newGoalRules.map((rule) => (
-                        <div key={rule.id} className="flex gap-2">
+                        <div key={rule.id} className="flex min-w-0 gap-2">
                           <select
                             value={rule.kind}
                             onChange={(e) =>
@@ -516,7 +565,7 @@ const SavingsGoals: React.FC = () => {
                                 )
                               )
                             }
-                            className="w-44 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
+                            className="w-44 shrink-0 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
                           >
                             <option value="plaid_category_primary">Category primary</option>
                             <option value="merchant_regex">Merchant regex</option>
@@ -530,7 +579,7 @@ const SavingsGoals: React.FC = () => {
                                 prev.map((r) => (r.id === rule.id ? { ...r, value: e.target.value } : r))
                               )
                             }
-                            className="flex-1 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
+                            className="min-w-0 flex-1 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
                             placeholder="Rule value"
                           />
                           <button
@@ -538,7 +587,7 @@ const SavingsGoals: React.FC = () => {
                             onClick={() =>
                               setNewGoalRules((prev) => prev.filter((r) => r.id !== rule.id))
                             }
-                            className="px-3 py-2 text-text-muted hover:text-text-primary"
+                            className="shrink-0 px-3 py-2 text-text-muted hover:text-text-primary"
                             title="Remove rule"
                           >
                             ×
@@ -548,6 +597,11 @@ const SavingsGoals: React.FC = () => {
                     </div>
                   </>
                 )}
+                {addGoalError ? (
+                  <p className="text-sm text-spending-red" role="alert">
+                    {addGoalError}
+                  </p>
+                ) : null}
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleAddGoal}
@@ -557,6 +611,7 @@ const SavingsGoals: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      setAddGoalError('');
                       setShowAddModal(false);
                       setNewGoalName('');
                       setNewGoalTarget('');
@@ -573,24 +628,27 @@ const SavingsGoals: React.FC = () => {
                   </button>
                 </div>
               </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* Edit Goal Modal */}
         {showEditModal && editingGoalId && (
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm"
             onClick={() => {
+              setEditGoalError('');
               setShowEditModal(false);
               setEditingGoalId(null);
               setEditGoalPlaidAccount('');
             }}
           >
-            <div 
-              className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="flex min-h-full items-center justify-center p-4">
+              <div
+                className="bg-surface-1 border border-border-subtle rounded-xl p-8 w-full max-w-md max-h-[min(90vh,calc(100dvh-2rem))] overflow-y-auto shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
               <h2 className="text-2xl font-semibold text-text-primary mb-6">
                 Edit Savings Goal
               </h2>
@@ -715,7 +773,7 @@ const SavingsGoals: React.FC = () => {
                         </button>
                       </div>
                       {editGoalRules.map((rule) => (
-                        <div key={rule.id} className="flex gap-2">
+                        <div key={rule.id} className="flex min-w-0 gap-2">
                           <select
                             value={rule.kind}
                             onChange={(e) =>
@@ -727,7 +785,7 @@ const SavingsGoals: React.FC = () => {
                                 )
                               )
                             }
-                            className="w-44 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
+                            className="w-44 shrink-0 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
                           >
                             <option value="plaid_category_primary">Category primary</option>
                             <option value="merchant_regex">Merchant regex</option>
@@ -741,7 +799,7 @@ const SavingsGoals: React.FC = () => {
                                 prev.map((r) => (r.id === rule.id ? { ...r, value: e.target.value } : r))
                               )
                             }
-                            className="flex-1 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
+                            className="min-w-0 flex-1 px-3 py-2 bg-surface-2 border border-border-subtle rounded-xl text-text-primary"
                             placeholder="Rule value"
                           />
                           <button
@@ -749,7 +807,7 @@ const SavingsGoals: React.FC = () => {
                             onClick={() =>
                               setEditGoalRules((prev) => prev.filter((r) => r.id !== rule.id))
                             }
-                            className="px-3 py-2 text-text-muted hover:text-text-primary"
+                            className="shrink-0 px-3 py-2 text-text-muted hover:text-text-primary"
                             title="Remove rule"
                           >
                             ×
@@ -759,6 +817,11 @@ const SavingsGoals: React.FC = () => {
                     </div>
                   </>
                 )}
+                {editGoalError ? (
+                  <p className="text-sm text-spending-red" role="alert">
+                    {editGoalError}
+                  </p>
+                ) : null}
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={handleUpdateGoal}
@@ -768,6 +831,7 @@ const SavingsGoals: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
+                      setEditGoalError('');
                       setShowEditModal(false);
                       setEditingGoalId(null);
                       setEditGoalMode('balance_linked');
@@ -781,6 +845,7 @@ const SavingsGoals: React.FC = () => {
                     Cancel
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           </div>

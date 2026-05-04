@@ -1,11 +1,23 @@
 rules_version = '2';
 // Security notes:
 // - Plaid tokens live under users/{uid}/plaidData — client read-only; only Cloud Functions write.
-// - Support: admins must have a document at adminUsers/{theirAuthUid} (create in Firebase Console)
-//   so they can list/update all supportTickets. Regular users only see their own tickets.
+// - Transaction category overrides/rules are client-managed under users/{uid}/transactionCategory* —
+//   used for budget categorization (must be explicit subcollection rules; parent user doc rule does not apply).
+// - Support: admin access is granted by Firebase custom claim `admin: true`.
+//   During migration, adminUsers/{uid} is still accepted as a fallback.
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdminUser() {
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid))
+      );
+    }
 
     // Admin allowlist (UIDs only). Create via Console: adminUsers/{uid} = { "active": true }
     match /adminUsers/{adminId} {
@@ -79,27 +91,163 @@ service cloud.firestore {
                           || request.resource.data.updatedAt is timestamp
                         );
       }
+
+      // Per-transaction category overrides (document ID = Plaid transaction_id)
+      match /transactionCategoryOverrides/{overrideId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly([
+               "transactionId",
+               "categoryId",
+               "source",
+               "updatedAt"
+             ])
+          && request.resource.data.transactionId is string
+          && request.resource.data.transactionId == overrideId
+          && request.resource.data.categoryId is string
+          && request.resource.data.categoryId.size() > 0
+          && request.resource.data.source == 'user'
+          && request.resource.data.updatedAt is timestamp;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Merchant / pattern rules for default Plaid transaction → app category mapping
+      match /transactionCategoryRules/{ruleId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.categoryId is string
+          && request.resource.data.categoryId.size() > 0
+          && request.resource.data.priority is number
+          && request.resource.data.matcher is map
+          && request.resource.data.matcher.keys().hasOnly([
+               "merchantContains",
+               "accountId",
+               "amountMin",
+               "amountMax",
+               "direction"
+             ])
+          && (!("merchantContains" in request.resource.data.matcher)
+              || request.resource.data.matcher.merchantContains == null
+              || request.resource.data.matcher.merchantContains is string)
+          && (!("accountId" in request.resource.data.matcher)
+              || request.resource.data.matcher.accountId == null
+              || request.resource.data.matcher.accountId is string)
+          && (!("amountMin" in request.resource.data.matcher)
+              || request.resource.data.matcher.amountMin == null
+              || request.resource.data.matcher.amountMin is number)
+          && (!("amountMax" in request.resource.data.matcher)
+              || request.resource.data.matcher.amountMax == null
+              || request.resource.data.matcher.amountMax is number)
+          && request.resource.data.matcher.direction in ["expense", "income", "any"]
+          && request.resource.data.updatedAt is timestamp
+          && (!("active" in request.resource.data)
+              || request.resource.data.active is bool)
+          && (!("createdAt" in request.resource.data)
+              || request.resource.data.createdAt == null
+              || request.resource.data.createdAt is timestamp)
+          && (!("id" in request.resource.data)
+              || request.resource.data.id == null
+              || request.resource.data.id is string);
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     match /supportTickets/{ticketId} {
-      allow create: if request.auth != null
+      allow create: if isSignedIn()
+                    && request.resource.data.keys().hasOnly([
+                      "userId",
+                      "userEmail",
+                      "userName",
+                      "subject",
+                      "message",
+                      "status",
+                      "createdAt",
+                      "updatedAt",
+                      "responses"
+                    ])
                     && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.userEmail == request.auth.token.email;
+                    && request.resource.data.userEmail == request.auth.token.email
+                    && (!("userName" in request.resource.data)
+                        || request.resource.data.userName == null
+                        || (request.resource.data.userName is string
+                            && request.resource.data.userName.size() <= 120))
+                    && request.resource.data.subject is string
+                    && request.resource.data.subject.size() > 0
+                    && request.resource.data.subject.size() <= 200
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 5000
+                    && request.resource.data.status in ["open", "in-progress", "resolved", "closed"]
+                    && request.resource.data.createdAt is string
+                    && request.resource.data.updatedAt is string
+                    && request.resource.data.responses is list
+                    && request.resource.data.responses.size() == 0;
 
-      allow read: if request.auth != null && (
+      allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid))
+        isAdminUser()
       );
 
-      allow update: if request.auth != null
+      allow update: if isSignedIn()
                     && resource.data.userId == request.auth.uid
                     && request.resource.data.userId == resource.data.userId
-                    && request.resource.data.userEmail == resource.data.userEmail;
+                    && request.resource.data.userEmail == resource.data.userEmail
+                    && request.resource.data.keys().hasOnly([
+                      "userId",
+                      "userEmail",
+                      "userName",
+                      "subject",
+                      "message",
+                      "status",
+                      "createdAt",
+                      "updatedAt",
+                      "responses"
+                    ])
+                    && (!("userName" in request.resource.data)
+                        || request.resource.data.userName == null
+                        || (request.resource.data.userName is string
+                            && request.resource.data.userName.size() <= 120))
+                    && request.resource.data.subject is string
+                    && request.resource.data.subject.size() > 0
+                    && request.resource.data.subject.size() <= 200
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 5000
+                    && request.resource.data.status in ["open", "in-progress", "resolved", "closed"]
+                    && request.resource.data.createdAt is string
+                    && request.resource.data.updatedAt is string
+                    && request.resource.data.responses is list;
 
-      allow update: if request.auth != null
-                    && exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid))
+      allow update: if isAdminUser()
                     && request.resource.data.userId == resource.data.userId
-                    && request.resource.data.userEmail == resource.data.userEmail;
+                    && request.resource.data.userEmail == resource.data.userEmail
+                    && request.resource.data.keys().hasOnly([
+                      "userId",
+                      "userEmail",
+                      "userName",
+                      "subject",
+                      "message",
+                      "status",
+                      "createdAt",
+                      "updatedAt",
+                      "responses"
+                    ])
+                    && (!("userName" in request.resource.data)
+                        || request.resource.data.userName == null
+                        || (request.resource.data.userName is string
+                            && request.resource.data.userName.size() <= 120))
+                    && request.resource.data.subject is string
+                    && request.resource.data.subject.size() > 0
+                    && request.resource.data.subject.size() <= 200
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 5000
+                    && request.resource.data.status in ["open", "in-progress", "resolved", "closed"]
+                    && request.resource.data.createdAt is string
+                    && request.resource.data.updatedAt is string
+                    && request.resource.data.responses is list;
     }
   }
 }

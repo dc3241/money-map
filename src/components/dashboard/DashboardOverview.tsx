@@ -91,7 +91,7 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 p-3 md:p-4 pb-20 md:pb-4">
         {/* Top row: 3 metric cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-4">
+        <div data-tour="tour-dashboard-metrics" className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-4">
           <DashboardMetricCard
             title={viewMode === 'week' ? 'Weekly income' : 'Monthly income'}
             value={viewMode === 'week' ? `+${formatCurrency(weekly.income)}` : `+${formatCurrency(monthly.income)}`}
@@ -118,12 +118,12 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
 
         {/* Main content: week grid + sidebar cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          <div className="lg:col-span-2 min-h-[280px] md:min-h-[320px]">
+          <div data-tour="tour-dashboard-calendar" className="lg:col-span-2 min-h-[280px] md:min-h-[320px]">
             <DashboardWeeklyView currentDate={currentDate} onDateChange={onDateChange} />
           </div>
 
           {/* Right: Accounts, Budget, Debt */}
-          <div className="flex flex-col gap-4">
+          <div data-tour="tour-dashboard-snapshots" className="flex flex-col gap-4">
             <AccountsAtAGlance onViewAccounts={onViewChange ? () => onViewChange('accounts') : undefined} />
             <BudgetSnapshot year={year} month={month} onViewBudgets={onViewChange ? () => onViewChange('budgets') : undefined} />
             <DebtPayoffSnapshot year={year} month={month} onViewDebt={onViewChange ? () => onViewChange('debt') : undefined} />
@@ -131,7 +131,7 @@ const DashboardOverviewInner: React.FC<DashboardOverviewProps> = ({
         </div>
 
         {/* Bottom: Recent transactions + Upcoming + Month summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div data-tour="tour-dashboard-activity" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="min-h-[200px]">
             <RecentTransactions limit={6} />
           </div>

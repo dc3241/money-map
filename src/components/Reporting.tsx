@@ -753,7 +753,7 @@ const Reporting: React.FC = () => {
 
   return (
     <div className="flex-1 overflow-y-auto bg-bg-app">
-      <header className="sticky top-0 z-20 border-b border-border-subtle bg-bg-app/85 backdrop-blur-md">
+      <header data-tour="tour-reporting-header" className="sticky top-0 z-20 border-b border-border-subtle bg-bg-app/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
@@ -780,6 +780,7 @@ const Reporting: React.FC = () => {
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div
+              data-tour="tour-reporting-year"
               className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
               role="tablist"
               aria-label="Year"
@@ -831,7 +832,7 @@ const Reporting: React.FC = () => {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      <div data-tour="tour-reporting-content" className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         {/* Bento hero */}
         <section aria-labelledby="reports-hero-heading">
           <h2 id="reports-hero-heading" className="sr-only">

@@ -370,7 +370,7 @@ const RecurringPlaidView: React.FC = () => {
   const reviewedCount = reviewedTxIds.size;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 bg-bg-app">
+    <div data-tour="tour-recurring-plaid-intro" className="flex-1 overflow-y-auto p-6 bg-bg-app">
       <h1 className="text-3xl font-semibold text-text-primary mb-2">
         Recurring
       </h1>
@@ -394,7 +394,7 @@ const RecurringPlaidView: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div data-tour="tour-recurring-plaid-stats" className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-surface-1 border border-border-subtle rounded-xl p-4">
           <div className="text-text-muted text-xs uppercase tracking-widest mb-1">
             This month — spending (actual)
@@ -467,7 +467,7 @@ const RecurringPlaidView: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div data-tour="tour-recurring-plaid-streams" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <StreamTable
           title="Outflows (subscriptions & bills)"
           streams={outflowsSortedByNext}

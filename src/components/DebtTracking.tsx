@@ -131,7 +131,7 @@ const DebtTracking: React.FC = () => {
     <div className="flex-1 overflow-y-auto bg-bg-app min-h-screen">
       <div className="max-w-7xl mx-auto p-6 md:p-8">
         {/* Header Section */}
-        <div className="mb-8">
+        <div data-tour="tour-debt-header" className="mb-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
@@ -168,6 +168,7 @@ const DebtTracking: React.FC = () => {
           )}
         </div>
         
+        <div data-tour="tour-debt-body">
         {/* Debts Grid */}
         {plaidLiabilityRows.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -289,6 +290,7 @@ const DebtTracking: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
 
         {/* Goal Modal */}
         {goalModalRow && (

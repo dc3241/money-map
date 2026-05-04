@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -23,6 +24,17 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
+
+const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY;
+if (appCheckSiteKey) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(appCheckSiteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+} else {
+  // App Check is required by callable functions; warn if site key is missing.
+  console.warn("VITE_RECAPTCHA_V3_SITE_KEY is not set; callable functions may fail App Check.");
+}
 // Callable functions: use httpsCallable only (no fetch/axios). SDK handles CORS and auth.
 const functions = getFunctions(app, "us-central1");
 export const createLinkToken = httpsCallable<unknown, { linkToken: string }>(functions, "createLinkToken");
@@ -33,4 +45,9 @@ export const syncPlaidInsights = httpsCallable<
   unknown,
   { success: boolean; recurring?: boolean; liabilities?: boolean }
 >(functions, "syncPlaidInsights");
+export const disconnectPlaid = httpsCallable<unknown, { success: boolean; removedFromPlaid?: boolean }>(
+  functions,
+  "disconnectPlaid"
+);
+export const deleteUserData = httpsCallable<unknown, { success: boolean }>(functions, "deleteUserData");
 export default app;

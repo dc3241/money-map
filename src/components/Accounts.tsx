@@ -3,7 +3,7 @@ import { useBudgetStore } from '../store/useBudgetStore';
 import type { AccountType, Account } from '../types';
 import PlaidLink from './PlaidLink';
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
-import { syncTransactions, syncBalances, syncPlaidInsights } from '../config/firebase';
+import { syncTransactions, syncBalances, syncPlaidInsights, disconnectPlaid } from '../config/firebase';
 
 // Map Plaid account type to display type
 const plaidTypeToLabel: Record<string, string> = {
@@ -50,6 +50,7 @@ const Accounts: React.FC = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const hasPlaidAccounts = plaidAccounts.length > 0;
   const plaidNetWorth = plaidAccounts.reduce((sum, a) => {
@@ -68,6 +69,19 @@ const Accounts: React.FC = () => {
       }
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleDisconnectPlaid = async () => {
+    const confirmed = window.confirm(
+      'Disconnect all linked bank accounts? This removes synced bank data from the app.'
+    );
+    if (!confirmed) return;
+    setDisconnecting(true);
+    try {
+      await disconnectPlaid({});
+    } finally {
+      setDisconnecting(false);
     }
   };
   
@@ -192,7 +206,7 @@ const Accounts: React.FC = () => {
     <div className="flex-1 overflow-y-auto bg-bg-app min-h-screen">
       <div className="max-w-7xl mx-auto p-6 md:p-8">
         {/* Header Section */}
-        <div className="mb-8">
+        <div data-tour="tour-accounts-header" className="mb-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
@@ -206,20 +220,29 @@ const Accounts: React.FC = () => {
             </div>
             <div className="flex gap-3">
               {hasPlaidAccounts && (
-                <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl hover:border-border-hover hover:text-text-primary font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {refreshing ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
-                      Syncing…
-                    </>
-                  ) : (
-                    'Refresh'
-                  )}
-                </button>
+                <>
+                  <button
+                    onClick={handleRefresh}
+                    disabled={refreshing || disconnecting}
+                    className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl hover:border-border-hover hover:text-text-primary font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {refreshing ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-border-subtle border-t-accent" />
+                        Syncing…
+                      </>
+                    ) : (
+                      'Refresh'
+                    )}
+                  </button>
+                  <button
+                    onClick={handleDisconnectPlaid}
+                    disabled={disconnecting || refreshing}
+                    className="px-6 py-3 bg-surface-2 border border-border-subtle text-text-secondary rounded-xl hover:border-border-hover hover:text-text-primary font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {disconnecting ? 'Disconnecting…' : 'Disconnect Banks'}
+                  </button>
+                </>
               )}
               {!hasPlaidAccounts && (
                 <>
@@ -287,7 +310,7 @@ const Accounts: React.FC = () => {
         </div>
 
         {/* Link bank via Plaid (logged-in users only) */}
-        <div className="mb-8">
+        <div data-tour="tour-accounts-link" className="mb-8">
           <div className="bg-surface-1 border border-border-subtle rounded-xl p-6">
             <h2 className="text-lg font-semibold text-text-primary mb-2">
               {hasPlaidAccounts ? 'Link another account' : 'Link your bank'}
@@ -303,7 +326,7 @@ const Accounts: React.FC = () => {
 
         {/* Plaid-linked accounts (read-only) */}
         {hasPlaidAccounts && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div data-tour="tour-accounts-list" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {plaidAccounts.map((account) => {
               const balance = account.current_balance ?? 0;
               const isCredit = account.type === 'credit';
@@ -345,7 +368,7 @@ const Accounts: React.FC = () => {
 
         {/* Legacy Accounts Grid (when no Plaid accounts) */}
         {!hasPlaidAccounts && accounts.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div data-tour="tour-accounts-list" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {accounts.map((account) => {
               const balance = getAccountBalance(account.id);
               const rawBalanceChange = balance - account.initialBalance;
@@ -434,7 +457,7 @@ const Accounts: React.FC = () => {
             })}
           </div>
         ) : !hasPlaidAccounts ? (
-          <div className="text-center py-20">
+          <div data-tour="tour-accounts-list" className="text-center py-20">
             <div className="max-w-md mx-auto">
               <div className="text-8xl mb-6">💳</div>
               <h2 className="text-3xl font-semibold text-text-primary mb-3">Connect your bank</h2>

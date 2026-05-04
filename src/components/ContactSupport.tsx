@@ -53,50 +53,53 @@ export default function ContactSupport() {
     }
   };
 
+  const inputClass =
+    'w-full px-4 py-3 bg-surface-2 border border-border-subtle rounded-xl text-text-primary placeholder:text-text-muted focus:border-accent focus:ring-0 focus:outline-none transition-all';
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-      <h3 className="text-xl font-bold text-slate-900 mb-6">Contact Support</h3>
+    <div className="bg-surface-1 rounded-xl border border-border-subtle p-6">
+      <h3 className="text-xl font-semibold text-text-primary mb-6">Contact Support</h3>
       
-      <p className="text-slate-600 mb-6">
+      <p className="text-text-secondary mb-6">
         Have a question or need help? Send us a message and we'll get back to you as soon as possible.
       </p>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+        <div className="mb-6 rounded-xl border border-spending-red/40 bg-spending-red-dim px-4 py-3 text-sm text-text-primary">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg mb-6">
+        <div className="mb-6 rounded-xl border border-income-green/40 bg-income-green-dim px-4 py-3 text-sm text-income-green">
           Your support ticket has been submitted successfully! We'll get back to you soon.
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">
+          <label className="block text-sm font-semibold text-text-secondary mb-2">
             Subject
           </label>
           <input
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none"
+            className={inputClass}
             placeholder="Brief description of your issue or question"
             disabled={isSubmitting}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">
+          <label className="block text-sm font-semibold text-text-secondary mb-2">
             Message
           </label>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={6}
-            className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all outline-none resize-none"
+            className={`${inputClass} resize-none`}
             placeholder="Please provide details about your issue or question..."
             disabled={isSubmitting}
           />
@@ -105,7 +108,7 @@ export default function ContactSupport() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-3 bg-accent text-white rounded-xl font-medium hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Submitting...' : 'Submit Ticket'}
         </button>

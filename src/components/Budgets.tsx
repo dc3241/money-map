@@ -47,10 +47,16 @@ const Budgets: React.FC = () => {
   const { data: plaidRecurring } = usePlaidRecurringFirestore();
   const { overrides: recurringOverrides } = usePlaidRecurringReview();
   const { accounts: plaidAccounts } = usePlaidAccounts();
-  const { overrides: txCategoryOverrides, saveOverride: saveTxCategoryOverride } =
-    usePlaidTransactionCategoryOverrides();
-  const { rules: txCategoryRules, saveRule: saveTxCategoryRule } =
-    usePlaidTransactionCategoryRules();
+  const {
+    overrides: txCategoryOverrides,
+    saveOverride: saveTxCategoryOverride,
+    error: txCategoryOverridesError,
+  } = usePlaidTransactionCategoryOverrides();
+  const {
+    rules: txCategoryRules,
+    saveRule: saveTxCategoryRule,
+    error: txCategoryRulesError,
+  } = usePlaidTransactionCategoryRules();
   const forecastRangeStart = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
   const forecastRangeEnd = format(new Date(), 'yyyy-MM-dd');
   const { transactions: forecastSourceTransactions } = usePlaidTransactionsInRange(
@@ -419,6 +425,13 @@ const Budgets: React.FC = () => {
             });
           }
         }
+      } catch (err) {
+        console.error('Save transaction category failed', err);
+        alert(
+          err instanceof Error
+            ? `Could not save category: ${err.message}`
+            : 'Could not save category. Please try again.'
+        );
       } finally {
         setTxCategorySavingById((prev) => ({ ...prev, [transactionId]: false }));
         setTxRuleApplyById((prev) => ({ ...prev, [transactionId]: false }));
@@ -438,7 +451,7 @@ const Budgets: React.FC = () => {
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 w-full">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div data-tour="tour-budgets-header" className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-semibold text-text-primary mb-2">
                 Budget Goals
@@ -475,6 +488,18 @@ const Budgets: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {(txCategoryOverridesError || txCategoryRulesError) && usePlaidForActuals && (
+            <div
+              className="mb-6 rounded-xl border border-spending-red/40 bg-spending-red-dim px-4 py-3 text-sm text-text-primary"
+              role="alert"
+            >
+              <p className="font-medium">Bank transaction categories cannot sync</p>
+              <p className="mt-1 text-text-secondary">
+                {txCategoryOverridesError?.message ?? txCategoryRulesError?.message}
+              </p>
+            </div>
+          )}
 
           {/* Filters Section */}
           {yearMonthFilteredBudgets.length > 0 && (
@@ -612,7 +637,7 @@ const Budgets: React.FC = () => {
             </div>
           )}
 
-          <div className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
+          <div data-tour="tour-budgets-planner" className="bg-surface-1 border border-border-subtle rounded-xl p-6 mb-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-text-primary">Spendable Planner</h3>
@@ -766,6 +791,7 @@ const Budgets: React.FC = () => {
         </div>
         
         {/* Budgets Grid */}
+        <div data-tour="tour-budgets-list">
         {currentBudgets.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentBudgets.map((budget) => {
@@ -903,6 +929,7 @@ const Budgets: React.FC = () => {
             </div>
           </div>
         )}
+        </div>
         
         {/* Add Budget Modal */}
         {showAddModal && (

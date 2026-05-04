@@ -15,6 +15,9 @@ export interface PlaidTransaction {
   id: string;
   transaction_id: string;
   date: string;
+  effective_date?: string | null;
+  posted_date?: string | null;
+  authorized_date?: string | null;
   name: string | null;
   merchant_name: string | null;
   amount: number;
@@ -40,10 +43,23 @@ export function docToPlaidTransaction(id: string, data: DocumentData): PlaidTran
     (typeof data.category_primary === "string" ? data.category_primary : null) ??
     (Array.isArray(data.category) ? data.category[0] ?? null : null);
 
+  const rawDate =
+    (typeof data.effective_date === "string" && data.effective_date.length > 0 ?
+      data.effective_date :
+      null) ??
+    (typeof data.date === "string" && data.date.length > 0 ? data.date : null) ??
+    "";
+
   return {
     id,
     transaction_id: data.transaction_id ?? id,
-    date: data.date ?? "",
+    date: rawDate,
+    effective_date:
+      typeof data.effective_date === "string" ? data.effective_date : null,
+    posted_date:
+      typeof data.posted_date === "string" ? data.posted_date : null,
+    authorized_date:
+      typeof data.authorized_date === "string" ? data.authorized_date : null,
     name: data.name ?? data.merchant_name ?? null,
     merchant_name: data.merchant_name ?? null,
     amount: Number(data.amount ?? 0),
