@@ -24,7 +24,7 @@ export interface RecurringReviewOverride {
   updatedAt: unknown;
 }
 
-type SaveOverrideInput = {
+export type SaveRecurringReviewOverrideInput = {
   transactionId: string;
   decision: RecurringReviewDecision;
   kind?: RecurringReviewKind | null;
@@ -37,7 +37,7 @@ export function usePlaidRecurringReview(): {
   overrides: Record<string, RecurringReviewOverride>;
   loading: boolean;
   error: Error | null;
-  saveOverride: (input: SaveOverrideInput) => Promise<void>;
+  saveOverride: (input: SaveRecurringReviewOverrideInput) => Promise<void>;
 } {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const [state, setState] = useState<{
@@ -93,7 +93,7 @@ export function usePlaidRecurringReview(): {
   }, [uid]);
 
   const saveOverride = useMemo(
-    () => async (input: SaveOverrideInput) => {
+    () => async (input: SaveRecurringReviewOverrideInput) => {
       if (!uid) return;
       const transactionId = input.transactionId.trim();
       if (!transactionId) return;

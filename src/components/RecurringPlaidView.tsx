@@ -8,6 +8,7 @@ import { usePlaidAccountTypeMap } from "../hooks/usePlaidAccounts";
 import { plaidMonthlyTotal } from "../utils/plaidAggregates";
 import {
   buildStreamTransactionIdSet,
+  estimateMonthlyFromRecurringOverrides,
   estimateMonthlyFromStreams,
 } from "../utils/plaidStreamUtils";
 import { usePlaidRecurringReview } from "../hooks/usePlaidRecurringReview";
@@ -16,39 +17,12 @@ import {
   recurringReviewCandidates,
   type RecurringReviewCandidate,
 } from "../utils/recurringReviewCandidates";
-
-const REVIEW_CADENCE_OPTIONS = [
-  "weekly",
-  "biweekly",
-  "semimonthly",
-  "monthly",
-  "quarterly",
-  "annually",
-];
-
-const REVIEW_EXPENSE_CATEGORIES = [
-  "Housing",
-  "Utilities",
-  "Food & Dining",
-  "Transportation",
-  "Insurance",
-  "Healthcare",
-  "Shopping",
-  "Entertainment",
-  "Debt Payment",
-  "Subscription",
-  "Other",
-];
-
-const REVIEW_INCOME_TYPES = [
-  "Salary",
-  "Freelance",
-  "Side hustle",
-  "Bonus",
-  "Investment",
-  "Transfer",
-  "Other",
-];
+import AddRecurringFromTransaction from "./recurring/AddRecurringFromTransaction";
+import {
+  RECURRING_REVIEW_CADENCE_OPTIONS,
+  RECURRING_REVIEW_EXPENSE_CATEGORIES,
+  RECURRING_REVIEW_INCOME_TYPES,
+} from "../constants/recurringReviewFormOptions";
 
 function streamAmt(s: PlaidTransactionStreamDoc): number {
   return Math.abs(
@@ -155,7 +129,7 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
           className="rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm text-text-primary"
           disabled={saving}
         >
-          {REVIEW_CADENCE_OPTIONS.map((opt) => (
+          {RECURRING_REVIEW_CADENCE_OPTIONS.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
@@ -169,7 +143,7 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
             disabled={saving}
           >
             <option value="">Category (optional)</option>
-            {REVIEW_EXPENSE_CATEGORIES.map((opt) => (
+            {RECURRING_REVIEW_EXPENSE_CATEGORIES.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
@@ -183,7 +157,7 @@ const ReviewCandidateCard: React.FC<ReviewCardProps> = ({
             disabled={saving}
           >
             <option value="">Income type (optional)</option>
-            {REVIEW_INCOME_TYPES.map((opt) => (
+            {RECURRING_REVIEW_INCOME_TYPES.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
@@ -330,7 +304,7 @@ const RecurringPlaidView: React.FC = () => {
   } = usePlaidRecurringReview();
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
-  const reviewStart = format(subMonths(now, 3), "yyyy-MM-dd");
+  const reviewStart = format(subMonths(now, 6), "yyyy-MM-dd");
   const reviewEnd = format(now, "yyyy-MM-dd");
   const { transactions: reviewTransactions, loading: reviewTxLoading } =
     usePlaidTransactionsInRange(
@@ -343,19 +317,36 @@ const RecurringPlaidView: React.FC = () => {
     [transactions, y, m, plaidAccountTypes]
   );
 
-  const streamEst = useMemo(
-    () => estimateMonthlyFromStreams(rec.inflow_streams, rec.outflow_streams),
+  const streamTxIds = useMemo(
+    () => buildStreamTransactionIdSet(rec.inflow_streams, rec.outflow_streams),
     [rec.inflow_streams, rec.outflow_streams]
   );
+
+  const streamEst = useMemo(() => {
+    const fromPlaid = estimateMonthlyFromStreams(
+      rec.inflow_streams,
+      rec.outflow_streams
+    );
+    const fromOverrides = estimateMonthlyFromRecurringOverrides(
+      overrides,
+      reviewTransactions,
+      streamTxIds
+    );
+    return {
+      income: fromPlaid.income + fromOverrides.income,
+      expense: fromPlaid.expense + fromOverrides.expense,
+    };
+  }, [
+    rec.inflow_streams,
+    rec.outflow_streams,
+    overrides,
+    reviewTransactions,
+    streamTxIds,
+  ]);
 
   const outflowsSortedByNext = useMemo(
     () => sortOutflowsByNextDate(rec.outflow_streams),
     [rec.outflow_streams]
-  );
-
-  const streamTxIds = useMemo(
-    () => buildStreamTransactionIdSet(rec.inflow_streams, rec.outflow_streams),
-    [rec.inflow_streams, rec.outflow_streams]
   );
   const reviewedTxIds = useMemo(() => new Set(Object.keys(overrides)), [overrides]);
   const reviewCandidates = useMemo(
@@ -436,7 +427,7 @@ const RecurringPlaidView: React.FC = () => {
             {formatCurrency(streamEst.expense)}
           </div>
           <div className="text-text-muted text-xs mt-1">
-            Per-stream amount × occurrences per month (approx.)
+            Plaid streams plus confirmed recurring rules (not double-counted with streams).
           </div>
         </div>
         <div className="bg-surface-2 border border-border-subtle rounded-xl p-4">
@@ -447,7 +438,7 @@ const RecurringPlaidView: React.FC = () => {
             {formatCurrency(streamEst.income)}
           </div>
           <div className="text-text-muted text-xs mt-1">
-            Per-stream amount × occurrences per month (approx.)
+            Plaid streams plus confirmed recurring rules (not double-counted with streams).
           </div>
         </div>
         <div className="bg-surface-2 border border-border-subtle rounded-xl p-4">
@@ -463,7 +454,9 @@ const RecurringPlaidView: React.FC = () => {
           >
             {formatCurrency(streamEst.income - streamEst.expense)}
           </div>
-          <div className="text-text-muted text-xs mt-1">Income estimate minus expense estimate</div>
+          <div className="text-text-muted text-xs mt-1">
+            Same combined estimates as the two cards above.
+          </div>
         </div>
       </div>
 
@@ -480,6 +473,15 @@ const RecurringPlaidView: React.FC = () => {
         />
       </div>
 
+      <div className="mt-8">
+        <AddRecurringFromTransaction
+          transactions={reviewTransactions}
+          loading={reviewTxLoading}
+          overrides={overrides}
+          saveOverride={saveOverride}
+        />
+      </div>
+
       <div className="mt-8 rounded-xl border border-border-subtle bg-surface-1 p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -487,7 +489,7 @@ const RecurringPlaidView: React.FC = () => {
               Recurring review queue
             </h2>
             <p className="mt-1 text-sm text-text-muted">
-              Confirm likely recurring transactions from the last 3 months to
+              Confirm likely recurring transactions from the last 6 months to
               improve forecasting accuracy.
             </p>
           </div>

@@ -26,6 +26,12 @@ import {
 } from 'date-fns';
 import { getNextOccurrence } from '../utils/recurrenceUtils';
 import {
+  computeReportingAverageDenominators,
+  firstManualDataDateInYear,
+  firstPlaidDataDateInYear,
+  formatReportingAveragePeriodLabel,
+} from '../utils/reportingPeriod';
+import {
   Area,
   Bar,
   BarChart,
@@ -181,7 +187,8 @@ const Reporting: React.FC = () => {
     loading: plaidYearLoading,
     error: plaidYearError,
   } = usePlaidYearTransactions(usePlaidForActuals ? selectedYear : null);
-  const forecastRangeStart = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
+  /** Match Budgets: recurring overrides need the anchor tx in this slice for forecast events. */
+  const forecastRangeStart = format(subMonths(new Date(), 12), 'yyyy-MM-dd');
   const forecastRangeEnd = format(new Date(), 'yyyy-MM-dd');
   const { transactions: forecastSourceTransactions } = usePlaidTransactionsInRange(
     usePlaidForActuals ? forecastRangeStart : null,
@@ -189,6 +196,18 @@ const Reporting: React.FC = () => {
   );
 
   const plaidReportTransactions = usePlaidForActuals ? plaidYearTransactions : [];
+
+  /** Earliest data in the selected year — skips empty pre-link months in average denominators. */
+  const firstDataDateInSelectedYear = useMemo(() => {
+    const plaidFirst = firstPlaidDataDateInYear(selectedYear, plaidYearTransactions);
+    const manualFirst = firstManualDataDateInYear(selectedYear, Object.keys(days));
+    if (usePlaidForActuals && plaidFirst) return plaidFirst;
+    if (!usePlaidForActuals && manualFirst) return manualFirst;
+    if (plaidFirst && manualFirst) {
+      return plaidFirst < manualFirst ? plaidFirst : manualFirst;
+    }
+    return plaidFirst ?? manualFirst ?? null;
+  }, [selectedYear, plaidYearTransactions, days, usePlaidForActuals]);
 
   const [monthlyChartTab, setMonthlyChartTab] = useState<
     'overview' | 'bars' | 'net' | 'forecast'
@@ -235,17 +254,7 @@ const Reporting: React.FC = () => {
           const dayData = days[dateKey];
           if (dayData) {
             income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-            const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-            const transfers = (dayData.transfers || []).reduce((sum, t) => {
-              if (t.transferToAccountId) {
-                const toAccount = accounts.find((a) => a.id === t.transferToAccountId);
-                if (toAccount && toAccount.type === 'credit_card') {
-                  return sum + t.amount;
-                }
-              }
-              return sum;
-            }, 0);
-            spending += regularSpending + transfers;
+            spending += (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
           }
         }
       }
@@ -261,7 +270,6 @@ const Reporting: React.FC = () => {
     plaidReportTransactions,
     days,
     selectedYear,
-    accounts,
     plaidAccountTypes,
   ]);
 
@@ -294,17 +302,34 @@ const Reporting: React.FC = () => {
     plaidAccountTypes,
   ]);
 
-  // Calculate averages
+  const reportingAverageDenominators = useMemo(
+    () =>
+      computeReportingAverageDenominators(
+        selectedYear,
+        firstDataDateInSelectedYear,
+        annualTotals.income,
+        annualTotals.spending
+      ),
+    [selectedYear, firstDataDateInSelectedYear, annualTotals]
+  );
+
+  const reportingAveragePeriodLabel = useMemo(
+    () => formatReportingAveragePeriodLabel(selectedYear, reportingAverageDenominators),
+    [selectedYear, reportingAverageDenominators]
+  );
+
+  // Calculate averages (completed months from first data month; daily = YTD / days in that span)
   const averages = useMemo(() => {
-    const daysInYear = new Date(selectedYear, 1, 29).getMonth() === 1 ? 366 : 365; // Handle leap year
+    const { monthlyDivisor, elapsedDaysInPeriod } = reportingAverageDenominators;
+    const m = monthlyDivisor;
     return {
-      monthlyIncome: annualTotals.income / 12,
-      monthlySpending: annualTotals.spending / 12,
-      monthlyProfit: annualTotals.profit / 12,
-      dailySpending: annualTotals.spending / daysInYear,
-      dailyIncome: annualTotals.income / daysInYear,
+      monthlyIncome: annualTotals.income / m,
+      monthlySpending: annualTotals.spending / m,
+      monthlyProfit: annualTotals.profit / m,
+      dailySpending: annualTotals.spending / elapsedDaysInPeriod,
+      dailyIncome: annualTotals.income / elapsedDaysInPeriod,
     };
-  }, [annualTotals, monthlyBreakdown, selectedYear]);
+  }, [annualTotals, reportingAverageDenominators]);
 
   // Calculate savings rate
   const savingsRate = useMemo(() => {
@@ -357,7 +382,12 @@ const Reporting: React.FC = () => {
 
   const topSpendingCategories = useMemo(() => {
     if (usePlaidForActuals) {
-      return plaidTopSpendingMerchants(plaidReportTransactions, selectedYear, 10);
+      return plaidTopSpendingMerchants(
+        plaidReportTransactions,
+        selectedYear,
+        10,
+        plaidAccountTypes
+      );
     }
     const categoryMap = new Map<string, number>();
 
@@ -375,7 +405,7 @@ const Reporting: React.FC = () => {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [usePlaidForActuals, plaidReportTransactions, days, selectedYear]);
+  }, [usePlaidForActuals, plaidReportTransactions, days, selectedYear, plaidAccountTypes]);
 
   const topIncomeSources = useMemo(() => {
     if (usePlaidForActuals) {
@@ -426,16 +456,15 @@ const Reporting: React.FC = () => {
     });
   }, [monthlyBreakdown]);
 
-  // Projections (simple linear projection based on current year average)
+  // Projections: rest-of-year extrapolation using same monthly run rate as Averages (current calendar year only)
   const projections = useMemo(() => {
+    const cy = new Date().getFullYear();
+    if (selectedYear !== cy) return null;
     const currentMonth = new Date().getMonth() + 1;
-    const monthsElapsed = currentMonth;
-    const monthsRemaining = 12 - monthsElapsed;
-
-    if (monthsElapsed === 0) return null;
-
-    const avgMonthlyIncome = annualTotals.income / monthsElapsed;
-    const avgMonthlySpending = annualTotals.spending / monthsElapsed;
+    const monthsRemaining = 12 - currentMonth;
+    const { monthlyDivisor } = reportingAverageDenominators;
+    const avgMonthlyIncome = annualTotals.income / monthlyDivisor;
+    const avgMonthlySpending = annualTotals.spending / monthlyDivisor;
     const projectedIncome = annualTotals.income + avgMonthlyIncome * monthsRemaining;
     const projectedSpending = annualTotals.spending + avgMonthlySpending * monthsRemaining;
 
@@ -444,7 +473,7 @@ const Reporting: React.FC = () => {
       projectedSpending,
       projectedProfit: projectedIncome - projectedSpending,
     };
-  }, [annualTotals, selectedYear]);
+  }, [annualTotals, selectedYear, reportingAverageDenominators]);
 
   const CHART_TICK_FILL = '#4A5270';
   const CHART_GRID = 'rgba(255,255,255,0.04)';
@@ -1477,12 +1506,22 @@ const Reporting: React.FC = () => {
                 </dl>
               </div>
             </div>
+            <p className="mt-4 text-xs text-text-muted leading-relaxed">
+              {reportingAverageDenominators.isPartialFirstMonthOnly
+                ? 'Monthly: month-to-date only until at least one full calendar month has ended.'
+                : reportingAveragePeriodLabel
+                  ? `Monthly: average over completed months (${reportingAveragePeriodLabel}).`
+                  : 'Monthly: average over completed months from the first month with activity in this year.'}{' '}
+              Daily: YTD divided by calendar days from that same start through today.
+            </p>
           </div>
 
           {projections && (
             <div className="rounded-2xl border border-border-subtle bg-surface-1 p-5 sm:p-6">
               <h2 className="font-display text-lg font-semibold text-text-primary">Year-end projections</h2>
-              <p className="mt-1 text-sm text-text-muted">Based on current year averages</p>
+              <p className="mt-1 text-sm text-text-muted">
+                YTD plus the same monthly run rate × remaining months in {selectedYear}
+              </p>
               <dl className="mt-5 space-y-3">
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-text-secondary">Projected income</dt>

@@ -23,6 +23,8 @@ export interface PlaidTransaction {
   amount: number;
   category: string[] | null;
   category_primary?: string | null;
+  /** Plaid PFC detailed (e.g. LOAN_PAYMENTS_CREDIT_CARD_PAYMENT). */
+  category_detailed?: string | null;
   pending?: boolean;
   account_id?: string | null;
   transaction_type?: string | null;
@@ -37,6 +39,12 @@ export function docToPlaidTransaction(id: string, data: DocumentData): PlaidTran
     pfc !== null &&
     typeof (pfc as { primary?: string }).primary === "string"
       ? (pfc as { primary: string }).primary
+      : null;
+  const pfcDetailed =
+    typeof pfc === "object" &&
+    pfc !== null &&
+    typeof (pfc as { detailed?: string }).detailed === "string"
+      ? (pfc as { detailed: string }).detailed
       : null;
   const categoryPrimary =
     pfcPrimary ??
@@ -65,6 +73,7 @@ export function docToPlaidTransaction(id: string, data: DocumentData): PlaidTran
     amount: Number(data.amount ?? 0),
     category: Array.isArray(data.category) ? data.category : null,
     category_primary: categoryPrimary,
+    category_detailed: pfcDetailed,
     pending: data.pending ?? false,
     account_id: data.account_id ?? null,
     transaction_type:

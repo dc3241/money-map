@@ -26,15 +26,23 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 
-const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY;
+const appCheckSiteKey =
+  typeof import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY === "string"
+    ? import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY.trim()
+    : "";
 if (appCheckSiteKey) {
   initializeAppCheck(app, {
     provider: new ReCaptchaV3Provider(appCheckSiteKey),
     isTokenAutoRefreshEnabled: true,
   });
 } else {
-  // App Check is required by callable functions; warn if site key is missing.
-  console.warn("VITE_RECAPTCHA_V3_SITE_KEY is not set; callable functions may fail App Check.");
+  const msg =
+    "VITE_RECAPTCHA_V3_SITE_KEY is missing. Callable Cloud Functions use App Check — add the reCAPTCHA v3 site key from Firebase Console → App Check (your web app), then rebuild. Without it, sync / Plaid / disconnect will fail.";
+  if (import.meta.env.PROD) {
+    console.error(msg);
+  } else {
+    console.warn(msg);
+  }
 }
 // Callable functions: use httpsCallable only (no fetch/axios). SDK handles CORS and auth.
 const functions = getFunctions(app, "us-central1");

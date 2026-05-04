@@ -93,6 +93,84 @@ function categoryPrimaryUpper(tx: PlaidTransaction): string {
   return (tx.category_primary ?? "").toUpperCase();
 }
 
+function categoryDetailedUpper(tx: PlaidTransaction): string {
+  return (tx.category_detailed ?? "").toUpperCase();
+}
+
+function accountTypeForTx(
+  tx: PlaidTransaction,
+  accountTypes?: PlaidAccountTypeMap
+): string | undefined {
+  const id = tx.account_id;
+  if (!id) return undefined;
+  return resolveAccountTypes(accountTypes).get(id)?.toLowerCase();
+}
+
+/**
+ * Plaid legacy category: "Transfer" + "Credit Card" / "Payment" + "Credit Card".
+ * Used when PFC detailed is missing on older items.
+ */
+function isLegacyPlaidCreditCardBillPayCategory(tx: PlaidTransaction): boolean {
+  const c = tx.category;
+  if (!Array.isArray(c) || c.length < 2) return false;
+  const top = (c[0] ?? "").toLowerCase();
+  const sub = (c[1] ?? "").toLowerCase();
+  if (top === "transfer" && sub.includes("credit card")) return true;
+  if (top === "payment" && sub.includes("credit card")) return true;
+  return false;
+}
+
+/** Plaid: internal account-to-account / savings / investment moves (not consumption). */
+const TRANSFER_OUT_NON_CONSUMPTION: ReadonlySet<string> = new Set([
+  "TRANSFER_OUT_ACCOUNT_TRANSFER",
+  "TRANSFER_OUT_SAVINGS",
+  "TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS",
+  "TRANSFER_OUT_DEPOSIT",
+]);
+
+/**
+ * Outflows (positive Plaid amounts) that are not "spending" for reporting:
+ * credit card bill pay from cash accounts (purchases already count on the card)
+ * and internal transfers between the user's own accounts.
+ */
+export function isExcludedFromPlaidSpendingBucket(
+  tx: PlaidTransaction,
+  accountTypes?: PlaidAccountTypeMap
+): boolean {
+  if (tx.amount <= 0) return false;
+  const detailed = categoryDetailedUpper(tx);
+  if (detailed === "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT") return true;
+  if (isLegacyPlaidCreditCardBillPayCategory(tx)) return true;
+  if (TRANSFER_OUT_NON_CONSUMPTION.has(detailed)) {
+    const t = accountTypeForTx(tx, accountTypes);
+    if (t === "depository") return true;
+  }
+  const primary = categoryPrimaryUpper(tx);
+  if (!detailed && primary === "TRANSFER_OUT") {
+    if (accountTypeForTx(tx, accountTypes) === "depository") return true;
+  }
+  return false;
+}
+
+/**
+ * True when a posted outflow should increase dashboard "spending" (consumption / cash out)
+ * and budget expense totals — excludes CC bill pay and internal transfers.
+ */
+export function countsAsPlaidConsumptionSpending(
+  tx: PlaidTransaction,
+  accountTypes?: PlaidAccountTypeMap
+): boolean {
+  if (!includeTxForAggregate(tx) || tx.amount <= 0) return false;
+  return !isExcludedFromPlaidSpendingBucket(tx, accountTypes);
+}
+
+function spendingAmountForTx(
+  tx: PlaidTransaction,
+  accountTypes?: PlaidAccountTypeMap
+): number {
+  return countsAsPlaidConsumptionSpending(tx, accountTypes) ? tx.amount : 0;
+}
+
 /**
  * Inflows (negative Plaid amounts) that should not appear in dashboard "income":
  * loan/CC payments on liability accounts and Plaid loan-payment categories.
@@ -147,7 +225,7 @@ export function plaidDailyTotal(
     if (tx.date !== dateKey) continue;
     if (!includeTxForAggregate(tx)) continue;
     if (tx.amount < 0) income += incomeAmountForTx(tx, accountTypes);
-    else if (tx.amount > 0) spending += tx.amount;
+    else if (tx.amount > 0) spending += spendingAmountForTx(tx, accountTypes);
   }
   return { income, spending, profit: income - spending };
 }
@@ -189,7 +267,7 @@ export function plaidMonthlyTotal(
     if (!isOnOrBeforeToday(tx.date)) continue;
     if (!includeTxForAggregate(tx)) continue;
     if (tx.amount < 0) income += incomeAmountForTx(tx, accountTypes);
-    else if (tx.amount > 0) spending += tx.amount;
+    else if (tx.amount > 0) spending += spendingAmountForTx(tx, accountTypes);
   }
   return { income, spending, profit: income - spending };
 }
@@ -207,7 +285,7 @@ export function plaidAnnualTotal(
     if (!isOnOrBeforeToday(tx.date)) continue;
     if (!includeTxForAggregate(tx)) continue;
     if (tx.amount < 0) income += incomeAmountForTx(tx, accountTypes);
-    else if (tx.amount > 0) spending += tx.amount;
+    else if (tx.amount > 0) spending += spendingAmountForTx(tx, accountTypes);
   }
   return { income, spending, profit: income - spending };
 }
@@ -240,13 +318,30 @@ export function plaidExcludedInflowOnDate(
   );
 }
 
-export function plaidSpendingOnDate(
+/** Outflows excluded from spending (e.g. CC bill pay, internal transfers). Shown separately in day UI. */
+export function plaidExcludedSpendingOutflowOnDate(
   transactions: PlaidTransaction[],
-  dateKey: string
+  dateKey: string,
+  accountTypes?: PlaidAccountTypeMap
 ): PlaidTransaction[] {
   return transactions.filter(
     (tx) =>
-      tx.date === dateKey && includeTxForAggregate(tx) && tx.amount > 0
+      tx.date === dateKey &&
+      includeTxForAggregate(tx) &&
+      tx.amount > 0 &&
+      isExcludedFromPlaidSpendingBucket(tx, accountTypes)
+  );
+}
+
+export function plaidSpendingOnDate(
+  transactions: PlaidTransaction[],
+  dateKey: string,
+  accountTypes?: PlaidAccountTypeMap
+): PlaidTransaction[] {
+  return transactions.filter(
+    (tx) =>
+      tx.date === dateKey &&
+      countsAsPlaidConsumptionSpending(tx, accountTypes)
   );
 }
 
@@ -257,7 +352,11 @@ export function plaidRecentRowKind(
   accountTypes?: PlaidAccountTypeMap
 ): PlaidRecentRowKind {
   if (!includeTxForAggregate(tx)) return "transfer";
-  if (tx.amount > 0) return "spending";
+  if (tx.amount > 0) {
+    return isExcludedFromPlaidSpendingBucket(tx, accountTypes)
+      ? "transfer"
+      : "spending";
+  }
   if (tx.amount < 0) {
     return countsAsPlaidCashFlowIncome(tx, accountTypes)
       ? "income"
@@ -269,14 +368,15 @@ export function plaidRecentRowKind(
 export function plaidTopSpendingMerchants(
   transactions: PlaidTransaction[],
   year: number,
-  take = 10
+  take = 10,
+  accountTypes?: PlaidAccountTypeMap
 ): { name: string; value: number }[] {
   const map = new Map<string, number>();
   for (const tx of transactions) {
     if (!tx.date.startsWith(`${year}-`)) continue;
     if (!isOnOrBeforeToday(tx.date)) continue;
     if (!includeTxForAggregate(tx)) continue;
-    if (tx.amount <= 0) continue;
+    if (!countsAsPlaidConsumptionSpending(tx, accountTypes)) continue;
     const raw = tx.merchant_name ?? tx.name ?? "Other";
     const { groupKey } = normalizePlaidLabelForAggregation(raw);
     map.set(groupKey, (map.get(groupKey) || 0) + tx.amount);

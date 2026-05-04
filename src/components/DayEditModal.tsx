@@ -8,6 +8,7 @@ import {
   plaidIncomeOnDate,
   plaidExcludedInflowOnDate,
   plaidSpendingOnDate,
+  plaidExcludedSpendingOutflowOnDate,
   formatPlaidIncomeLabel,
   formatPlaidSpendingLabel,
 } from '../utils/plaidAggregates';
@@ -71,7 +72,16 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
     dateKey,
     usePlaidForActuals ? accountTypeByAccountId : undefined
   );
-  const plaidSpendingList = plaidSpendingOnDate(plaidTransactions, dateKey);
+  const plaidSpendingList = plaidSpendingOnDate(
+    plaidTransactions,
+    dateKey,
+    usePlaidForActuals ? accountTypeByAccountId : undefined
+  );
+  const plaidExcludedSpendingOutflowList = plaidExcludedSpendingOutflowOnDate(
+    plaidTransactions,
+    dateKey,
+    usePlaidForActuals ? accountTypeByAccountId : undefined
+  );
 
   const handleAddIncome = (amount: number, description: string, accountId?: string, categoryId?: string) => {
     const transaction: Transaction = {
@@ -586,7 +596,7 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
               )}
             </div>
             <div className="mt-3 pt-3 border-t border-gray-200">
-              <div className="text-xs text-gray-500 mb-1">Included in spending total</div>
+              <div className="text-xs text-gray-500 mb-1">Transfer activity (not included in spending)</div>
               <div className="font-semibold text-blue-600 tabular-nums text-sm">
                 Total: {formatCurrency((dayData.transfers || []).reduce((sum, t) => sum + t.amount, 0))}
               </div>
@@ -610,6 +620,29 @@ const DayEditModal: React.FC<DayEditModalProps> = ({ date, onClose }) => {
                   </span>
                   <span className="tabular-nums text-gray-700 flex-shrink-0">
                     {formatCurrency(Math.abs(tx.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {usePlaidForActuals && plaidExcludedSpendingOutflowList.length > 0 && (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              Bill pay & account transfers (not counted as spending)
+            </h3>
+            <ul className="space-y-2 max-h-40 overflow-y-auto">
+              {plaidExcludedSpendingOutflowList.map((tx) => (
+                <li
+                  key={tx.transaction_id}
+                  className="text-sm flex justify-between gap-2 border-b border-gray-200 pb-1 last:border-0"
+                >
+                  <span className="text-gray-600 truncate">
+                    {formatPlaidSpendingLabel(tx)}
+                  </span>
+                  <span className="tabular-nums text-gray-700 flex-shrink-0">
+                    {formatCurrency(tx.amount)}
                   </span>
                 </li>
               ))}

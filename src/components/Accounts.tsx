@@ -51,6 +51,7 @@ const Accounts: React.FC = () => {
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [plaidActionError, setPlaidActionError] = useState('');
 
   const hasPlaidAccounts = plaidAccounts.length > 0;
   const plaidNetWorth = plaidAccounts.reduce((sum, a) => {
@@ -58,6 +59,7 @@ const Accounts: React.FC = () => {
     return a.type === 'credit' ? sum - b : sum + b;
   }, 0);
   const handleRefresh = async () => {
+    setPlaidActionError('');
     setRefreshing(true);
     try {
       await syncTransactions({});
@@ -67,6 +69,12 @@ const Accounts: React.FC = () => {
       } catch {
         /* recurring/liabilities optional */
       }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Sync failed. Check your connection and try again.';
+      setPlaidActionError(message);
     } finally {
       setRefreshing(false);
     }
@@ -77,9 +85,16 @@ const Accounts: React.FC = () => {
       'Disconnect all linked bank accounts? This removes synced bank data from the app.'
     );
     if (!confirmed) return;
+    setPlaidActionError('');
     setDisconnecting(true);
     try {
       await disconnectPlaid({});
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not disconnect banks. Try again.';
+      setPlaidActionError(message);
     } finally {
       setDisconnecting(false);
     }
@@ -264,6 +279,13 @@ const Accounts: React.FC = () => {
               )}
             </div>
           </div>
+
+          {plaidActionError ? (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm">
+              <p className="font-medium text-red-800">Bank action failed</p>
+              <p className="mt-1 text-red-700">{plaidActionError}</p>
+            </div>
+          ) : null}
 
           {/* Plaid summary when we have linked accounts */}
           {hasPlaidAccounts && (

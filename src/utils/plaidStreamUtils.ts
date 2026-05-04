@@ -1,6 +1,7 @@
 import { parseISO, startOfDay, isValid } from "date-fns";
 import type { PlaidTransactionStreamDoc } from "../hooks/usePlaidRecurringFirestore";
 import type { PlaidTransaction } from "../hooks/usePlaidTransactions";
+import type { RecurringReviewOverride } from "../hooks/usePlaidRecurringReview";
 
 export interface UpcomingStreamItem {
   id: string;
@@ -52,6 +53,77 @@ export function monthlyMultiplierForStreamFrequency(
     default:
       return 1;
   }
+}
+
+/**
+ * Monthly occurrence multiplier for user-confirmed recurring cadence strings
+ * (recurring review / same values as `RECURRING_REVIEW_CADENCE_OPTIONS`).
+ */
+export function monthlyMultiplierForReviewCadence(
+  cadence: string | null | undefined
+): number {
+  const c = (cadence ?? "monthly")
+    .toLowerCase()
+    .trim()
+    .replace(/[-\s]+/g, "_");
+  switch (c) {
+    case "daily":
+      return 365.25 / 12;
+    case "weekly":
+      return 52 / 12;
+    case "biweekly":
+    case "bi_weekly":
+      return 26 / 12;
+    case "semimonthly":
+    case "semi_monthly":
+    case "twice_monthly":
+      return 2;
+    case "monthly":
+      return 1;
+    case "quarterly":
+      return 4 / 12;
+    case "annually":
+    case "annual":
+    case "yearly":
+      return 1 / 12;
+    default:
+      return 1;
+  }
+}
+
+/**
+ * Approximate monthly income/expense from Firestore `recurringReview` overrides.
+ * Skips anchors already attributed to a Plaid recurring stream (avoid double-count with
+ * `estimateMonthlyFromStreams`) and skips overrides whose transaction is not in `transactions`.
+ */
+export function estimateMonthlyFromRecurringOverrides(
+  overrides: Record<string, RecurringReviewOverride>,
+  transactions: PlaidTransaction[],
+  streamTxIds: Set<string>
+): { income: number; expense: number } {
+  const txById = new Map<string, PlaidTransaction>();
+  for (const tx of transactions) {
+    txById.set(tx.transaction_id, tx);
+  }
+  let income = 0;
+  let expense = 0;
+  for (const [transactionId, o] of Object.entries(overrides)) {
+    if (o.decision !== "recurring") continue;
+    if (streamTxIds.has(transactionId)) continue;
+    const tx = txById.get(transactionId);
+    if (!tx) continue;
+    const kind =
+      o.kind === "income" || o.kind === "expense"
+        ? o.kind
+        : tx.amount < 0
+          ? "income"
+          : "expense";
+    const mult = monthlyMultiplierForReviewCadence(o.cadence);
+    const amt = Math.abs(tx.amount);
+    if (kind === "income") income += amt * mult;
+    else expense += amt * mult;
+  }
+  return { income, expense };
 }
 
 function nextDateFromStream(s: PlaidTransactionStreamDoc): Date | null {

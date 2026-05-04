@@ -656,18 +656,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
         const state = get();
         const dayData = state.days[date] || { date, income: [], spending: [], transfers: [] };
         const income = dayData.income.reduce((sum, t) => sum + t.amount, 0);
-        const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-        // Only count transfers to credit cards as spending (paying down debt)
-        const transfers = (dayData.transfers || []).reduce((sum, t) => {
-          if (t.transferToAccountId) {
-            const toAccount = state.accounts.find((a) => a.id === t.transferToAccountId);
-            if (toAccount && toAccount.type === 'credit_card') {
-              return sum + t.amount;
-            }
-          }
-          return sum;
-        }, 0);
-        const spending = regularSpending + transfers;
+        const spending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
         return {
           income,
           spending,
@@ -692,18 +681,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
             const dayData = state.days[dateKey];
             if (dayData) {
               income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-              const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-              // Only count transfers to credit cards as spending (paying down debt)
-              const transfers = (dayData.transfers || []).reduce((sum, t) => {
-                if (t.transferToAccountId) {
-                  const toAccount = state.accounts.find((a) => a.id === t.transferToAccountId);
-                  if (toAccount && toAccount.type === 'credit_card') {
-                    return sum + t.amount;
-                  }
-                }
-                return sum;
-              }, 0);
-              spending += regularSpending + transfers;
+              spending += (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
             }
           }
           currentDate.setDate(currentDate.getDate() + 1);
@@ -734,18 +712,7 @@ export const useBudgetStore = create<StoreState & StoreActions>()(
               const dayData = state.days[dateKey];
               if (dayData) {
                 income += dayData.income.reduce((sum, t) => sum + t.amount, 0);
-                const regularSpending = (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
-                // Only count transfers to credit cards as spending (paying down debt)
-                const transfers = (dayData.transfers || []).reduce((sum, t) => {
-                  if (t.transferToAccountId) {
-                    const toAccount = state.accounts.find((a) => a.id === t.transferToAccountId);
-                    if (toAccount && toAccount.type === 'credit_card') {
-                      return sum + t.amount;
-                    }
-                  }
-                  return sum;
-                }, 0);
-                spending += regularSpending + transfers;
+                spending += (dayData.spending || []).reduce((sum, t) => sum + t.amount, 0);
               }
             }
           }

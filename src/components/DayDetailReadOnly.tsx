@@ -7,6 +7,7 @@ import {
   plaidIncomeOnDate,
   plaidExcludedInflowOnDate,
   plaidSpendingOnDate,
+  plaidExcludedSpendingOutflowOnDate,
   formatPlaidIncomeLabel,
   formatPlaidSpendingLabel,
 } from "../utils/plaidAggregates";
@@ -31,7 +32,12 @@ const DayDetailReadOnly: React.FC<DayDetailReadOnlyProps> = ({ date, onClose }) 
     dateKey,
     accountTypeByAccountId
   );
-  const spendingList = plaidSpendingOnDate(transactions, dateKey);
+  const spendingList = plaidSpendingOnDate(transactions, dateKey, accountTypeByAccountId);
+  const excludedSpendingOutflow = plaidExcludedSpendingOutflowOnDate(
+    transactions,
+    dateKey,
+    accountTypeByAccountId
+  );
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
@@ -126,6 +132,29 @@ const DayDetailReadOnly: React.FC<DayDetailReadOnlyProps> = ({ date, onClose }) 
                   </span>
                   <span className="tabular-nums text-gray-700 flex-shrink-0">
                     {formatCurrency(Math.abs(tx.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {excludedSpendingOutflow.length > 0 && (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              Bill pay & account transfers (not counted as spending)
+            </h3>
+            <ul className="space-y-2 max-h-36 overflow-y-auto">
+              {excludedSpendingOutflow.map((tx) => (
+                <li
+                  key={tx.transaction_id}
+                  className="text-sm flex justify-between gap-2 border-b border-gray-200 pb-1 last:border-0"
+                >
+                  <span className="text-gray-600 truncate">
+                    {formatPlaidSpendingLabel(tx)}
+                  </span>
+                  <span className="tabular-nums text-gray-700 flex-shrink-0">
+                    {formatCurrency(tx.amount)}
                   </span>
                 </li>
               ))}

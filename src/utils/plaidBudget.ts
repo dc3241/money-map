@@ -9,6 +9,10 @@ import type {
 } from "../types";
 import { deriveLegacyBudgetWindow, isDateInWindow } from "./budgetPeriods";
 import { resolvePlaidTransactionCategoryId } from "./plaidTransactionCategorization";
+import {
+  type PlaidAccountTypeMap,
+  countsAsPlaidConsumptionSpending,
+} from "./plaidAggregates";
 
 const EXPENSE_CATEGORY_PLAID_PRIMARIES: Record<string, string[]> = {
   "cat-exp-housing": ["RENT_AND_UTILITIES"],
@@ -101,7 +105,8 @@ export function getPlaidBudgetSpending(
   overrides: Record<string, TransactionCategoryOverride> = {},
   rules: TransactionCategoryRule[] = [],
   year: number,
-  month?: number
+  month?: number,
+  accountTypes?: PlaidAccountTypeMap
 ): number {
   const cat = categories.find((c) => c.id === budget.categoryId);
   if (!cat) return 0;
@@ -127,6 +132,7 @@ export function getPlaidBudgetSpending(
         total += Math.abs(tx.amount);
       }
     } else if (resolvedCategoryId === budget.categoryId && tx.amount > 0) {
+      if (!countsAsPlaidConsumptionSpending(tx, accountTypes)) continue;
       total += tx.amount;
     }
   }
@@ -141,7 +147,8 @@ export function getPlaidBudgetStatus(
   overrides: Record<string, TransactionCategoryOverride> = {},
   rules: TransactionCategoryRule[] = [],
   year: number,
-  month?: number
+  month?: number,
+  accountTypes?: PlaidAccountTypeMap
 ): { limit: number; spent: number; remaining: number; percentage: number } {
   const spent = getPlaidBudgetSpending(
     transactions,
@@ -150,7 +157,8 @@ export function getPlaidBudgetStatus(
     overrides,
     rules,
     year,
-    month
+    month,
+    accountTypes
   );
   const limit = budget.amount;
   const remaining = limit - spent;
@@ -165,7 +173,8 @@ export function getPlaidBudgetTransactionsAsStoreShape(
   overrides: Record<string, TransactionCategoryOverride> = {},
   rules: TransactionCategoryRule[] = [],
   year: number,
-  month?: number
+  month?: number,
+  accountTypes?: PlaidAccountTypeMap
 ): { date: string; transaction: Transaction }[] {
   const cat = categories.find((c) => c.id === budget.categoryId);
   if (!cat) return [];
@@ -200,6 +209,7 @@ export function getPlaidBudgetTransactionsAsStoreShape(
         },
       });
     } else if (tx.amount > 0) {
+      if (!countsAsPlaidConsumptionSpending(tx, accountTypes)) continue;
       result.push({
         date: tx.date,
         transaction: {

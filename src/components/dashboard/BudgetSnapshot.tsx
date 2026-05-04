@@ -3,6 +3,7 @@ import { useBudgetStore } from '../../store/useBudgetStore';
 import { format } from 'date-fns';
 import { usePlaidActuals } from '../../context/PlaidActualsContext';
 import { usePlaidYearTransactions } from '../../hooks/usePlaidYearTransactions';
+import { usePlaidAccountTypeMap } from '../../hooks/usePlaidAccounts';
 import { usePlaidTransactionCategoryOverrides } from '../../hooks/usePlaidTransactionCategoryOverrides';
 import { usePlaidTransactionCategoryRules } from '../../hooks/usePlaidTransactionCategoryRules';
 import { getPlaidBudgetStatus } from '../../utils/plaidBudget';
@@ -23,6 +24,7 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
   const { transactions: plaidYearTxns } = usePlaidYearTransactions(
     usePlaidForActuals ? year : null
   );
+  const plaidAccountTypes = usePlaidAccountTypeMap();
   const { overrides: txCategoryOverrides } = usePlaidTransactionCategoryOverrides();
   const { rules: txCategoryRules } = usePlaidTransactionCategoryRules();
 
@@ -38,7 +40,8 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
           txCategoryOverrides,
           txCategoryRules,
           year,
-          month
+          month,
+          plaidAccountTypes
         );
       }
       return getBudgetStatus(budgetId, year, month);
@@ -53,6 +56,7 @@ const BudgetSnapshot: React.FC<BudgetSnapshotProps> = ({ year, month, onViewBudg
       usePlaidForActuals,
       year,
       month,
+      plaidAccountTypes,
     ]
   );
 

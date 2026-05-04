@@ -6,7 +6,7 @@ import { usePlaidYearTransactions } from '../hooks/usePlaidYearTransactions';
 import { usePlaidTransactionsInRange } from '../hooks/usePlaidTransactionsInRange';
 import { usePlaidRecurringFirestore } from '../hooks/usePlaidRecurringFirestore';
 import { usePlaidRecurringReview } from '../hooks/usePlaidRecurringReview';
-import { usePlaidAccounts } from '../hooks/usePlaidAccounts';
+import { usePlaidAccounts, usePlaidAccountTypeMap } from '../hooks/usePlaidAccounts';
 import { usePlaidTransactionCategoryOverrides } from '../hooks/usePlaidTransactionCategoryOverrides';
 import { usePlaidTransactionCategoryRules } from '../hooks/usePlaidTransactionCategoryRules';
 import { getPlaidBudgetStatus, getPlaidBudgetTransactionsAsStoreShape } from '../utils/plaidBudget';
@@ -47,6 +47,7 @@ const Budgets: React.FC = () => {
   const { data: plaidRecurring } = usePlaidRecurringFirestore();
   const { overrides: recurringOverrides } = usePlaidRecurringReview();
   const { accounts: plaidAccounts } = usePlaidAccounts();
+  const plaidAccountTypes = usePlaidAccountTypeMap();
   const {
     overrides: txCategoryOverrides,
     saveOverride: saveTxCategoryOverride,
@@ -57,7 +58,8 @@ const Budgets: React.FC = () => {
     saveRule: saveTxCategoryRule,
     error: txCategoryRulesError,
   } = usePlaidTransactionCategoryRules();
-  const forecastRangeStart = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
+  /** Include enough history so recurring-review anchors resolve in the spendable planner (see buildOverrideEvents). */
+  const forecastRangeStart = format(subMonths(new Date(), 12), 'yyyy-MM-dd');
   const forecastRangeEnd = format(new Date(), 'yyyy-MM-dd');
   const { transactions: forecastSourceTransactions } = usePlaidTransactionsInRange(
     forecastRangeStart,
@@ -76,7 +78,8 @@ const Budgets: React.FC = () => {
           txCategoryOverrides,
           txCategoryRules,
           selectedYear,
-          selectedMonth
+          selectedMonth,
+          plaidAccountTypes
         );
       }
       return getBudgetStatus(budgetId, selectedYear, selectedMonth);
@@ -91,6 +94,7 @@ const Budgets: React.FC = () => {
       usePlaidForActuals,
       selectedYear,
       selectedMonth,
+      plaidAccountTypes,
     ]
   );
 
@@ -1156,7 +1160,8 @@ const Budgets: React.FC = () => {
                   txCategoryOverrides,
                   txCategoryRules,
                   selectedYear,
-                  selectedMonth
+                  selectedMonth,
+                  plaidAccountTypes
                 )
               : getBudgetTransactions(reportBudgetId, selectedYear, selectedMonth)
             : [];
