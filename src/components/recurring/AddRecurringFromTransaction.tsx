@@ -23,6 +23,7 @@ interface Props {
   loading: boolean;
   overrides: Record<string, RecurringReviewOverride>;
   saveOverride: (input: SaveRecurringReviewOverrideInput) => Promise<void>;
+  deleteOverride: (transactionId: string) => Promise<void>;
 }
 
 const LIST_CAP = 100;
@@ -36,20 +37,25 @@ const AddRecurringFromTransaction: React.FC<Props> = ({
   loading,
   overrides,
   saveOverride,
+  deleteOverride,
 }) => {
   const [query, setQuery] = useState("");
   const [hidePending, setHidePending] = useState(true);
+  const [hideAlreadyRecurring, setHideAlreadyRecurring] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAllRows, setShowAllRows] = useState(false);
 
   useEffect(() => {
     setShowAllRows(false);
-  }, [query, hidePending]);
+  }, [query, hidePending, hideAlreadyRecurring]);
 
   const filteredAll = useMemo(() => {
     const q = query.trim().toLowerCase();
     let rows = transactions.filter((tx) => {
       if (hidePending && tx.pending) return false;
+      if (hideAlreadyRecurring && overrides[tx.transaction_id]?.decision === "recurring") {
+        return false;
+      }
       if (!q) return true;
       const label = (tx.merchant_name || tx.name || "").toLowerCase();
       const cat = (tx.category_primary || "").toLowerCase();
@@ -62,7 +68,7 @@ const AddRecurringFromTransaction: React.FC<Props> = ({
     });
     rows = [...rows].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     return rows;
-  }, [transactions, query, hidePending]);
+  }, [transactions, query, hidePending, hideAlreadyRecurring, overrides]);
 
   const capped = useMemo(
     () => filteredAll.slice(0, LIST_CAP),
@@ -113,6 +119,15 @@ const AddRecurringFromTransaction: React.FC<Props> = ({
             className="rounded border-border-subtle text-accent focus:ring-accent"
           />
           Hide pending
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+          <input
+            type="checkbox"
+            checked={hideAlreadyRecurring}
+            onChange={(e) => setHideAlreadyRecurring(e.target.checked)}
+            className="rounded border-border-subtle text-accent focus:ring-accent"
+          />
+          Hide already recurring
         </label>
       </div>
 
@@ -230,6 +245,7 @@ const AddRecurringFromTransaction: React.FC<Props> = ({
           existing={overrides[selectedTx.transaction_id] ?? null}
           onCancel={() => setSelectedId(null)}
           saveOverride={saveOverride}
+          deleteOverride={deleteOverride}
         />
       )}
     </div>
@@ -241,6 +257,7 @@ type ConfirmPanelProps = {
   existing: RecurringReviewOverride | null;
   onCancel: () => void;
   saveOverride: (input: SaveRecurringReviewOverrideInput) => Promise<void>;
+  deleteOverride: (transactionId: string) => Promise<void>;
 };
 
 const ConfirmRulePanel: React.FC<ConfirmPanelProps> = ({
@@ -248,6 +265,7 @@ const ConfirmRulePanel: React.FC<ConfirmPanelProps> = ({
   existing,
   onCancel,
   saveOverride,
+  deleteOverride,
 }) => {
   const defaultKind: "income" | "expense" = tx.amount < 0 ? "income" : "expense";
   const [kind, setKind] = useState<"income" | "expense">(
@@ -396,6 +414,27 @@ const ConfirmRulePanel: React.FC<ConfirmPanelProps> = ({
           >
             Not recurring
           </button>
+          {existing?.decision === "recurring" && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                setSaveError(null);
+                try {
+                  await deleteOverride(tx.transaction_id);
+                  onCancel();
+                } catch (err) {
+                  setSaveError(err instanceof Error ? err.message : "Could not remove rule.");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              className="rounded-lg border border-spending-red bg-spending-red-dim px-4 py-2 text-sm font-medium text-spending-red hover:bg-spending-red hover:text-white disabled:opacity-70"
+            >
+              Remove recurring rule
+            </button>
+          )}
         </div>
       </div>
       {saveError && <p className="mt-2 text-sm text-spending-red">{saveError}</p>}

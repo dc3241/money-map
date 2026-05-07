@@ -44,7 +44,8 @@ service cloud.firestore {
 
       match /recurringReview/{docId} {
         allow read: if request.auth != null && request.auth.uid == userId;
-        allow write: if request.auth != null
+        // create/update: validated payload. delete: resource checks invalid on delete; allow explicitly.
+        allow create, update: if request.auth != null
                      && request.auth.uid == userId
                      && request.resource.data.keys().hasOnly([
                           "transactionId",
@@ -90,6 +91,7 @@ service cloud.firestore {
                           || request.resource.data.updatedAt == null
                           || request.resource.data.updatedAt is timestamp
                         );
+        allow delete: if request.auth != null && request.auth.uid == userId;
       }
 
       // Per-transaction category overrides (document ID = Plaid transaction_id)

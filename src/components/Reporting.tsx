@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useBudgetStore } from '../store/useBudgetStore';
 import { usePlaidActuals } from '../context/PlaidActualsContext';
 import { usePlaidAccountTypeMap, usePlaidAccounts } from '../hooks/usePlaidAccounts';
@@ -31,6 +31,7 @@ import {
   firstPlaidDataDateInYear,
   formatReportingAveragePeriodLabel,
 } from '../utils/reportingPeriod';
+import { computeRecurringBaselineCalendarYear } from '../utils/reportingProjections';
 import {
   Area,
   Bar,
@@ -88,13 +89,30 @@ function formatAxisCompact(value: number): string {
   return `$${Math.round(value)}`;
 }
 
-const TOP_INSIGHTS_Y_AXIS_WIDTH = 136;
-const TOP_INSIGHTS_CHART_MARGIN = { left: 8, right: 8 };
+const TOP_INSIGHTS_CHART_MARGIN = { left: 4, right: 12 };
 
-function truncateCategoryLabel(value: string, maxLength = 15): string {
+function truncateCategoryLabel(value: string, maxLength = 46): string {
   if (!value) return 'Uncategorized';
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1)}…`;
+}
+
+/** Wider label column on large screens; tighter on narrow viewports so bars stay readable. */
+function useTopInsightsLabelLayout() {
+  const [vw, setVw] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return useMemo(() => {
+    if (vw < 420) return { yAxisWidth: 104, maxLabelChars: 20 };
+    if (vw < 640) return { yAxisWidth: 148, maxLabelChars: 28 };
+    if (vw < 1024) return { yAxisWidth: 208, maxLabelChars: 38 };
+    return { yAxisWidth: 268, maxLabelChars: 46 };
+  }, [vw]);
 }
 
 function addCadence(base: Date, cadence: string): Date {
@@ -171,6 +189,7 @@ function streamAnchorDate(stream: PlaidTransactionStreamDoc, today: Date): Date 
 }
 
 const Reporting: React.FC = () => {
+  const topInsightsLabels = useTopInsightsLabelLayout();
   const days = useBudgetStore((state) => state.days);
   const accounts = useBudgetStore((state) => state.accounts);
   const getMonthlyTotal = useBudgetStore((state) => state.getMonthlyTotal);
@@ -214,6 +233,7 @@ const Reporting: React.FC = () => {
   >('overview');
   const [focusMonthKey, setFocusMonthKey] = useState<number | null>(null);
   const [plaidRecurringExpanded, setPlaidRecurringExpanded] = useState(false);
+  const [projectionMode, setProjectionMode] = useState<'recurring' | 'actuals'>('recurring');
 
   // Get available years from manual days + Plaid transaction dates (+ recent band when linked)
   const availableYears = useMemo(() => {
@@ -456,7 +476,7 @@ const Reporting: React.FC = () => {
     });
   }, [monthlyBreakdown]);
 
-  // Projections: rest-of-year extrapolation using same monthly run rate as Averages (current calendar year only)
+  // Projections (current calendar year only): recurring baseline vs actuals trajectory
   const projections = useMemo(() => {
     const cy = new Date().getFullYear();
     if (selectedYear !== cy) return null;
@@ -465,15 +485,41 @@ const Reporting: React.FC = () => {
     const { monthlyDivisor } = reportingAverageDenominators;
     const avgMonthlyIncome = annualTotals.income / monthlyDivisor;
     const avgMonthlySpending = annualTotals.spending / monthlyDivisor;
-    const projectedIncome = annualTotals.income + avgMonthlyIncome * monthsRemaining;
-    const projectedSpending = annualTotals.spending + avgMonthlySpending * monthsRemaining;
-
-    return {
-      projectedIncome,
-      projectedSpending,
-      projectedProfit: projectedIncome - projectedSpending,
+    const actualsTrajectory = {
+      projectedIncome: annualTotals.income + avgMonthlyIncome * monthsRemaining,
+      projectedSpending: annualTotals.spending + avgMonthlySpending * monthsRemaining,
+      projectedProfit:
+        annualTotals.income +
+        avgMonthlyIncome * monthsRemaining -
+        (annualTotals.spending + avgMonthlySpending * monthsRemaining),
     };
-  }, [annualTotals, selectedYear, reportingAverageDenominators]);
+
+    const baseline = computeRecurringBaselineCalendarYear(cy, {
+      usePlaidForActuals,
+      plaidRecurring,
+      recurringOverrides,
+      forecastSourceTransactions,
+      recurringIncome,
+      recurringExpenses,
+    });
+    const recurringBaseline = {
+      projectedIncome: baseline.income,
+      projectedSpending: baseline.spending,
+      projectedProfit: baseline.profit,
+    };
+
+    return { actualsTrajectory, recurringBaseline };
+  }, [
+    annualTotals,
+    selectedYear,
+    reportingAverageDenominators,
+    usePlaidForActuals,
+    plaidRecurring,
+    recurringOverrides,
+    forecastSourceTransactions,
+    recurringIncome,
+    recurringExpenses,
+  ]);
 
   const CHART_TICK_FILL = '#4A5270';
   const CHART_GRID = 'rgba(255,255,255,0.04)';
@@ -1519,34 +1565,121 @@ const Reporting: React.FC = () => {
           {projections && (
             <div className="rounded-2xl border border-border-subtle bg-surface-1 p-5 sm:p-6">
               <h2 className="font-display text-lg font-semibold text-text-primary">Year-end projections</h2>
-              <p className="mt-1 text-sm text-text-muted">
-                YTD plus the same monthly run rate × remaining months in {selectedYear}
+              <p className="mt-1 text-sm text-text-muted">Outlook for {selectedYear}</p>
+              <div
+                className="mt-4 flex rounded-xl border border-border-subtle bg-surface-2/80 p-1"
+                role="tablist"
+                aria-label="Projection basis"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={projectionMode === 'recurring'}
+                  onClick={() => setProjectionMode('recurring')}
+                  className={`min-h-[40px] flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1 ${
+                    projectionMode === 'recurring'
+                      ? 'bg-accent text-white shadow-[0_0_0_1px_rgba(79,127,255,0.35)]'
+                      : 'text-text-secondary hover:bg-surface-3 hover:text-text-primary'
+                  }`}
+                >
+                  Recurring baseline
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={projectionMode === 'actuals'}
+                  onClick={() => setProjectionMode('actuals')}
+                  className={`min-h-[40px] flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1 ${
+                    projectionMode === 'actuals'
+                      ? 'bg-accent text-white shadow-[0_0_0_1px_rgba(79,127,255,0.35)]'
+                      : 'text-text-secondary hover:bg-surface-3 hover:text-text-primary'
+                  }`}
+                >
+                  From recent actuals
+                </button>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-text-muted">
+                {projectionMode === 'recurring' ? (
+                  <>
+                    Expected income and fixed bills from{' '}
+                    {usePlaidForActuals
+                      ? 'mature Plaid recurring streams, your recurring overrides, and manual recurring items'
+                      : 'manual recurring income and expenses'}{' '}
+                    across the full calendar year. One-off deposits and purchases are excluded.
+                  </>
+                ) : (
+                  <>
+                    Year-to-date totals from all transactions, plus the same monthly average used in Averages ×
+                    remaining months. Includes bonuses, tax refunds, and large one-time purchases—so the run rate can
+                    look higher than your steady paycheck.
+                  </>
+                )}
               </p>
-              <dl className="mt-5 space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-text-secondary">Projected income</dt>
-                  <dd className="font-semibold tabular-nums text-income-green">
-                    {formatCurrency(projections.projectedIncome)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-text-secondary">Projected spending</dt>
-                  <dd className="font-semibold tabular-nums text-spending-red">
-                    {formatCurrency(projections.projectedSpending)}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t border-border-subtle pt-3">
-                  <dt className="font-medium text-text-primary">Projected net</dt>
-                  <dd
-                    className={`text-lg font-semibold tabular-nums ${
-                      projections.projectedProfit >= 0 ? 'text-income-green' : 'text-spending-red'
-                    }`}
-                  >
-                    {projections.projectedProfit >= 0 ? '+' : ''}
-                    {formatCurrency(projections.projectedProfit)}
-                  </dd>
-                </div>
-              </dl>
+              {projectionMode === 'actuals' &&
+                !usePlaidForActuals &&
+                (transactionAnalysis.oneTimeIncome > 0 || transactionAnalysis.oneTimeSpending > 0) && (
+                  <p className="mt-2 text-xs text-text-muted">
+                    One-time entries YTD:{' '}
+                    <span className="tabular-nums text-income-green">
+                      +{formatCurrency(transactionAnalysis.oneTimeIncome)}
+                    </span>{' '}
+                    income ·{' '}
+                    <span className="tabular-nums text-spending-red">
+                      {formatCurrency(transactionAnalysis.oneTimeSpending)}
+                    </span>{' '}
+                    spending (from calendar flags).
+                  </p>
+                )}
+              {(() => {
+                const active =
+                  projectionMode === 'recurring'
+                    ? projections.recurringBaseline
+                    : projections.actualsTrajectory;
+                return (
+                  <dl className="mt-5 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-text-secondary">Projected income</dt>
+                      <dd className="font-semibold tabular-nums text-income-green">
+                        {formatCurrency(active.projectedIncome)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-text-secondary">Projected spending</dt>
+                      <dd className="font-semibold tabular-nums text-spending-red">
+                        {formatCurrency(active.projectedSpending)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 border-t border-border-subtle pt-3">
+                      <dt className="font-medium text-text-primary">Projected net</dt>
+                      <dd
+                        className={`text-lg font-semibold tabular-nums ${
+                          active.projectedProfit >= 0 ? 'text-income-green' : 'text-spending-red'
+                        }`}
+                      >
+                        {active.projectedProfit >= 0 ? '+' : ''}
+                        {formatCurrency(active.projectedProfit)}
+                      </dd>
+                    </div>
+                  </dl>
+                );
+              })()}
+              <details className="mt-4 rounded-lg border border-border-subtle/80 bg-surface-2/40 px-3 py-2 text-xs text-text-muted">
+                <summary className="cursor-pointer select-none font-medium text-text-secondary hover:text-text-primary">
+                  How these numbers are calculated
+                </summary>
+                <ul className="mt-2 list-disc space-y-1.5 pl-4 leading-relaxed">
+                  <li>
+                    <strong className="font-medium text-text-secondary">Recurring baseline:</strong> sums every
+                    scheduled occurrence from Jan 1–Dec 31: mature Plaid streams are stepped by pay frequency so early-year
+                    paychecks count too (not only after your last posted deposit); manual recurring uses your calendar
+                    pattern. Your raw one-off transactions are not included.
+                  </li>
+                  <li>
+                    <strong className="font-medium text-text-secondary">From recent actuals:</strong> YTD income and
+                    spending through today, extended by the monthly average (completed months) for the rest of the year.
+                  </li>
+                </ul>
+              </details>
             </div>
           )}
         </section>
@@ -1579,8 +1712,8 @@ const Reporting: React.FC = () => {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={TOP_INSIGHTS_Y_AXIS_WIDTH}
-                      tickFormatter={truncateCategoryLabel}
+                      width={topInsightsLabels.yAxisWidth}
+                      tickFormatter={(v) => truncateCategoryLabel(v, topInsightsLabels.maxLabelChars)}
                       tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
@@ -1615,8 +1748,8 @@ const Reporting: React.FC = () => {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={TOP_INSIGHTS_Y_AXIS_WIDTH}
-                      tickFormatter={truncateCategoryLabel}
+                      width={topInsightsLabels.yAxisWidth}
+                      tickFormatter={(v) => truncateCategoryLabel(v, topInsightsLabels.maxLabelChars)}
                       tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                       axisLine={false}
                       tickLine={false}
@@ -1657,8 +1790,8 @@ const Reporting: React.FC = () => {
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={TOP_INSIGHTS_Y_AXIS_WIDTH}
-                    tickFormatter={truncateCategoryLabel}
+                    width={topInsightsLabels.yAxisWidth}
+                    tickFormatter={(v) => truncateCategoryLabel(v, topInsightsLabels.maxLabelChars)}
                     tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
@@ -1696,8 +1829,8 @@ const Reporting: React.FC = () => {
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={TOP_INSIGHTS_Y_AXIS_WIDTH}
-                    tickFormatter={truncateCategoryLabel}
+                    width={topInsightsLabels.yAxisWidth}
+                    tickFormatter={(v) => truncateCategoryLabel(v, topInsightsLabels.maxLabelChars)}
                     tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}

@@ -316,6 +316,167 @@ async function runTransactionsSyncForUser(
   };
 }
 
+type PlaidInsightsOutcome = {
+  recurring: boolean;
+  liabilities: boolean;
+};
+
+/**
+ * Fetches current balances from Plaid and merges into users/{uid}/accounts.
+ * @param {string} uid Auth user ID.
+ * @param {PlaidApi} plaid Configured Plaid client.
+ */
+async function runBalancesSyncForUser(
+  uid: string,
+  plaid: PlaidApi
+): Promise<void> {
+  const db = getFirestore();
+  const plaidDoc = await db.doc(`users/${uid}/plaidData/item`).get();
+  const plaidData = plaidDoc.data();
+  const accessToken = plaidData?.access_token as string | undefined;
+
+  if (!accessToken) {
+    throw new HttpsError(
+      "failed-precondition",
+      "No Plaid access token. Link a bank account first."
+    );
+  }
+
+  const accountsResponse = await plaid.accountsGet({
+    access_token: accessToken,
+  });
+  const accountsRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("accounts");
+  for (const acct of accountsResponse.data.accounts) {
+    const balances = acct.balances;
+    await accountsRef.doc(acct.account_id).set(
+      {
+        account_id: acct.account_id,
+        item_id: plaidData?.item_id ?? null,
+        name: acct.name ?? "Account",
+        type: acct.type ?? "other",
+        subtype: acct.subtype ?? null,
+        mask: acct.mask ?? null,
+        current_balance: balances?.current ?? null,
+        available_balance: balances?.available ?? null,
+        updated_at: new Date(),
+      },
+      {merge: true}
+    );
+  }
+}
+
+/**
+ * Syncs recurring streams and liabilities snapshot to plaidData.
+ * Tolerates per-endpoint Plaid errors (same as callable).
+ * @param {string} uid Auth user ID.
+ * @param {PlaidApi} plaid Configured Plaid client.
+ * @return {Promise<PlaidInsightsOutcome>} Whether each part succeeded.
+ */
+async function runPlaidInsightsForUser(
+  uid: string,
+  plaid: PlaidApi
+): Promise<PlaidInsightsOutcome> {
+  const db = getFirestore();
+  const plaidDoc = await db.doc(`users/${uid}/plaidData/item`).get();
+  const plaidData = plaidDoc.data();
+  const accessToken = plaidData?.access_token as string | undefined;
+
+  if (!accessToken) {
+    throw new HttpsError(
+      "failed-precondition",
+      "No Plaid access token. Link a bank account first."
+    );
+  }
+
+  const recurringRef = db.doc(`users/${uid}/plaidData/recurring`);
+  const liabilitiesRef = db.doc(`users/${uid}/plaidData/liabilities`);
+
+  let recurringOk = false;
+  let liabilitiesOk = false;
+
+  try {
+    const recResponse = await plaid.transactionsRecurringGet({
+      access_token: accessToken,
+    });
+    const recData = recResponse.data;
+    await recurringRef.set(
+      {
+        inflow_streams: recData.inflow_streams ?? [],
+        outflow_streams: recData.outflow_streams ?? [],
+        updated_datetime: recData.updated_datetime ?? null,
+        personal_finance_category_version:
+          recData.personal_finance_category_version ?? null,
+        synced_at: new Date(),
+        error: null,
+      },
+      {merge: true}
+    );
+    recurringOk = true;
+  } catch (err: unknown) {
+    logger.warn(
+      "Plaid transactionsRecurringGet failed (item may lack product)",
+      plaidAxiosFailureFields(err)
+    );
+    if (err && typeof err === "object" && "response" in err) {
+      const res = (err as {response?: {data?: unknown}}).response;
+      await recurringRef.set(
+        {
+          synced_at: new Date(),
+          error:
+            res?.data !== undefined ?
+              JSON.stringify(res.data) :
+              messageFromPlaidAxiosError(err, "unknown_error"),
+        },
+        {merge: true}
+      );
+    }
+  }
+
+  try {
+    const liabResponse = await plaid.liabilitiesGet({
+      access_token: accessToken,
+    });
+    const liabData = liabResponse.data;
+    await liabilitiesRef.set(
+      {
+        accounts: liabData.accounts ?? [],
+        liabilities: liabData.liabilities ?? {},
+        item: liabData.item ?? null,
+        synced_at: new Date(),
+        error: null,
+      },
+      {merge: true}
+    );
+    liabilitiesOk = true;
+  } catch (err: unknown) {
+    logger.warn(
+      "Plaid liabilitiesGet failed (product not enabled or unsupported)",
+      plaidAxiosFailureFields(err)
+    );
+    if (err && typeof err === "object" && "response" in err) {
+      const res = (err as {response?: {data?: unknown}}).response;
+      await liabilitiesRef.set(
+        {
+          synced_at: new Date(),
+          error:
+            res?.data !== undefined ?
+              JSON.stringify(res.data) :
+              messageFromPlaidAxiosError(err, "unknown_error"),
+        },
+        {merge: true}
+      );
+    }
+  }
+
+  return {
+    recurring: recurringOk,
+    liabilities: liabilitiesOk,
+  };
+}
+
 /**
  * Creates a Plaid link token for the authenticated user.
  * Callable; requires auth. Returns { linkToken } for initializing Plaid Link.
@@ -479,14 +640,15 @@ export const syncTransactions = onCall(
 );
 
 /**
- * Daily midnight sync for all linked Plaid users.
- * Runs in Pacific Time to align with the product's primary timezone.
+ * Daily midnight sync for all linked Plaid users: transactions, balances,
+ * recurring/liabilities snapshots. Runs in Pacific Time.
  */
 export const syncPlaidDaily = onSchedule(
   {
     schedule: "0 0 * * *",
     timeZone: "America/Los_Angeles",
     secrets: plaidSecrets,
+    timeoutSeconds: 1800,
   },
   async () => {
     const clientId = plaidClientId.value();
@@ -504,6 +666,8 @@ export const syncPlaidDaily = onSchedule(
     let skipped = 0;
     let totalAdded = 0;
     let totalModified = 0;
+    let balanceFailed = 0;
+    let insightsFailed = 0;
 
     for (const itemDoc of itemDocs) {
       const uid = itemDoc.ref.parent.parent?.id;
@@ -516,6 +680,26 @@ export const syncPlaidDaily = onSchedule(
         synced++;
         totalAdded += outcome.added;
         totalModified += outcome.modified;
+
+        try {
+          await runBalancesSyncForUser(uid, plaid);
+        } catch (balErr: unknown) {
+          balanceFailed++;
+          logger.error("Daily Plaid balance sync failed for user", {
+            uid,
+            ...plaidAxiosFailureFields(balErr),
+          });
+        }
+
+        try {
+          await runPlaidInsightsForUser(uid, plaid);
+        } catch (insErr: unknown) {
+          insightsFailed++;
+          logger.error("Daily Plaid insights sync failed for user", {
+            uid,
+            ...plaidAxiosFailureFields(insErr),
+          });
+        }
       } catch (err: unknown) {
         if (
           err instanceof HttpsError &&
@@ -540,6 +724,8 @@ export const syncPlaidDaily = onSchedule(
       failed,
       added: totalAdded,
       modified: totalModified,
+      balanceFailed,
+      insightsFailed,
     });
   }
 );
@@ -556,46 +742,17 @@ export const syncBalances = onCall(
     }
     await enforceRateLimit(uid, "syncBalances");
 
-    const db = getFirestore();
-    const plaidDoc = await db.doc(`users/${uid}/plaidData/item`).get();
-    const plaidData = plaidDoc.data();
-    const accessToken = plaidData?.access_token as string | undefined;
-
-    if (!accessToken) {
-      throw new HttpsError(
-        "failed-precondition",
-        "No Plaid access token. Link a bank account first."
-      );
-    }
-
     const clientId = plaidClientId.value();
     const secret = plaidSecret.value();
     const plaid = getPlaidClient(clientId, secret);
 
     try {
-      const accountsResponse = await plaid.accountsGet({
-        access_token: accessToken,
-      });
-      const accountsRef = db
-        .collection("users")
-        .doc(uid)
-        .collection("accounts");
-      for (const acct of accountsResponse.data.accounts) {
-        const balances = acct.balances;
-        await accountsRef.doc(acct.account_id).set({
-          account_id: acct.account_id,
-          item_id: plaidData?.item_id ?? null,
-          name: acct.name ?? "Account",
-          type: acct.type ?? "other",
-          subtype: acct.subtype ?? null,
-          mask: acct.mask ?? null,
-          current_balance: balances?.current ?? null,
-          available_balance: balances?.available ?? null,
-          updated_at: new Date(),
-        }, {merge: true});
-      }
+      await runBalancesSyncForUser(uid, plaid);
       return {success: true};
     } catch (err: unknown) {
+      if (err instanceof HttpsError) {
+        throw err;
+      }
       logger.error("Plaid accountsGet failed", plaidAxiosFailureFields(err));
       throw new HttpsError(
         "internal",
@@ -621,106 +778,15 @@ export const syncPlaidInsights = onCall(
     }
     await enforceRateLimit(uid, "syncPlaidInsights");
 
-    const db = getFirestore();
-    const plaidDoc = await db.doc(`users/${uid}/plaidData/item`).get();
-    const plaidData = plaidDoc.data();
-    const accessToken = plaidData?.access_token as string | undefined;
-
-    if (!accessToken) {
-      throw new HttpsError(
-        "failed-precondition",
-        "No Plaid access token. Link a bank account first."
-      );
-    }
-
     const clientId = plaidClientId.value();
     const secret = plaidSecret.value();
     const plaid = getPlaidClient(clientId, secret);
 
-    const recurringRef = db.doc(`users/${uid}/plaidData/recurring`);
-    const liabilitiesRef = db.doc(`users/${uid}/plaidData/liabilities`);
-
-    let recurringOk = false;
-    let liabilitiesOk = false;
-
-    try {
-      const recResponse = await plaid.transactionsRecurringGet({
-        access_token: accessToken,
-      });
-      const recData = recResponse.data;
-      await recurringRef.set(
-        {
-          inflow_streams: recData.inflow_streams ?? [],
-          outflow_streams: recData.outflow_streams ?? [],
-          updated_datetime: recData.updated_datetime ?? null,
-          personal_finance_category_version:
-            recData.personal_finance_category_version ?? null,
-          synced_at: new Date(),
-          error: null,
-        },
-        {merge: true}
-      );
-      recurringOk = true;
-    } catch (err: unknown) {
-      logger.warn(
-        "Plaid transactionsRecurringGet failed (item may lack product)",
-        plaidAxiosFailureFields(err)
-      );
-      if (err && typeof err === "object" && "response" in err) {
-        const res = (err as { response?: { data?: unknown } }).response;
-        await recurringRef.set(
-          {
-            synced_at: new Date(),
-            error:
-              res?.data !== undefined ?
-                JSON.stringify(res.data) :
-                messageFromPlaidAxiosError(err, "unknown_error"),
-          },
-          {merge: true}
-        );
-      }
-    }
-
-    try {
-      const liabResponse = await plaid.liabilitiesGet({
-        access_token: accessToken,
-      });
-      const liabData = liabResponse.data;
-      await liabilitiesRef.set(
-        {
-          accounts: liabData.accounts ?? [],
-          liabilities: liabData.liabilities ?? {},
-          item: liabData.item ?? null,
-          synced_at: new Date(),
-          error: null,
-        },
-        {merge: true}
-      );
-      liabilitiesOk = true;
-    } catch (err: unknown) {
-      logger.warn(
-        "Plaid liabilitiesGet failed (product not enabled or unsupported)",
-        plaidAxiosFailureFields(err)
-      );
-      if (err && typeof err === "object" && "response" in err) {
-        const res = (err as { response?: { data?: unknown } }).response;
-        await liabilitiesRef.set(
-          {
-            synced_at: new Date(),
-            error:
-              res?.data !== undefined ?
-                JSON.stringify(res.data) :
-                messageFromPlaidAxiosError(err, "unknown_error"),
-          },
-          {merge: true}
-        );
-      }
-    }
-
+    const outcome = await runPlaidInsightsForUser(uid, plaid);
     return {
-      success: recurringOk || liabilitiesOk,
-      recurring: recurringOk,
-      liabilities: liabilitiesOk,
+      success: outcome.recurring || outcome.liabilities,
+      recurring: outcome.recurring,
+      liabilities: outcome.liabilities,
     };
   }
 );

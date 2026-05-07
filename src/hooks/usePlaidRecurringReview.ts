@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -38,6 +39,7 @@ export function usePlaidRecurringReview(): {
   loading: boolean;
   error: Error | null;
   saveOverride: (input: SaveRecurringReviewOverrideInput) => Promise<void>;
+  deleteOverride: (transactionId: string) => Promise<void>;
 } {
   const uid = useAuthStore((s) => s.user?.uid ?? null);
   const [state, setState] = useState<{
@@ -116,10 +118,21 @@ export function usePlaidRecurringReview(): {
     [uid]
   );
 
+  const deleteOverride = useMemo(
+    () => async (transactionId: string) => {
+      if (!uid) return;
+      const id = transactionId.trim();
+      if (!id) return;
+      await deleteDoc(doc(db, "users", uid, "recurringReview", id));
+    },
+    [uid]
+  );
+
   return {
     overrides: state.overrides,
     loading: state.loading,
     error: state.error,
     saveOverride,
+    deleteOverride,
   };
 }

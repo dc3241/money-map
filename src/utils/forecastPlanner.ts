@@ -8,6 +8,7 @@ import {
   endOfMonth,
   format,
   isAfter,
+  isBefore,
   parseISO,
   startOfMonth,
   startOfWeek,
@@ -143,23 +144,71 @@ function nextByStreamFrequency(base: Date, frequency: string | null | undefined)
   }
 }
 
+/** Inverse of {@link nextByStreamFrequency} for walking a stream backward on its cadence. */
+function prevByStreamFrequency(base: Date, frequency: string | null | undefined): Date {
+  const f = (frequency ?? '').toUpperCase().trim().replace(/[-\s]+/g, '_');
+  switch (f) {
+    case 'DAILY':
+      return addDays(base, -1);
+    case 'WEEKLY':
+      return addWeeks(base, -1);
+    case 'BIWEEKLY':
+      return addWeeks(base, -2);
+    case 'SEMI_MONTHLY':
+      return addDays(base, -15);
+    case 'QUARTERLY':
+      return addMonths(base, -3);
+    case 'ANNUALLY':
+    case 'ANNUAL':
+      return addYears(base, -1);
+    case 'MONTHLY':
+    case 'UNKNOWN':
+    case 'DYNAMIC':
+    default:
+      return addMonths(base, -1);
+  }
+}
+
+/**
+ * Aligns to the first occurrence on this stream's schedule that falls in [windowStart, windowEnd].
+ * Walks backward from Plaid's anchor so Jan–Dec windows include early-year pay periods, not only dates after last_date.
+ */
+function firstStreamOccurrenceInWindow(
+  stream: PlaidTransactionStreamDoc,
+  windowStart: Date,
+  windowEnd: Date
+): Date | null {
+  const anchorRaw = stream.last_date ?? stream.predicted_next_date ?? null;
+  if (!anchorRaw) return null;
+  let cursor = startOfDay(parseISO(`${anchorRaw}T12:00:00`));
+  if (Number.isNaN(cursor.getTime())) return null;
+
+  let guard = 0;
+  while (isAfter(cursor, windowEnd) && guard < 400) {
+    cursor = prevByStreamFrequency(cursor, stream.frequency);
+    guard++;
+  }
+
+  guard = 0;
+  while (!isBefore(cursor, windowStart) && guard < 400) {
+    const prev = prevByStreamFrequency(cursor, stream.frequency);
+    if (isBefore(prev, windowStart)) break;
+    cursor = prev;
+    guard++;
+  }
+  guard = 0;
+  while (isAfter(windowStart, cursor) && guard < 400) {
+    cursor = nextByStreamFrequency(cursor, stream.frequency);
+    guard++;
+  }
+
+  if (isAfter(cursor, windowEnd) || isBefore(cursor, windowStart)) return null;
+  return cursor;
+}
+
 function streamAmount(s: PlaidTransactionStreamDoc): number {
   const value = s.last_amount?.amount ?? s.average_amount?.amount ?? 0;
   return Math.abs(Number(value) || 0);
-}
-
-function streamAnchorDate(stream: PlaidTransactionStreamDoc, fromDate: Date): Date | null {
-  // Use last_date as the recurrence anchor when available so monthly windows can
-  // project all expected occurrences in-range, not only the next predicted hit.
-  const anchorRaw = stream.last_date ?? stream.predicted_next_date ?? null;
-  if (!anchorRaw) return null;
-  const anchorParsed = parseISO(`${anchorRaw}T12:00:00`);
-  if (Number.isNaN(anchorParsed.getTime())) return null;
-  let next = startOfDay(anchorParsed);
-  while (!isAfter(next, fromDate)) {
-    next = nextByStreamFrequency(next, stream.frequency);
-  }
-  return next;
 }
 
 function confidenceLabel(value: number): PlannerConfidenceLabel {
@@ -168,11 +217,13 @@ function confidenceLabel(value: number): PlannerConfidenceLabel {
   return 'Low';
 }
 
-function buildOverrideEvents(
+/** @param maxOccurrencesPerSeries Cap per override row (default 24 matches short planner windows). */
+export function buildOverrideEvents(
   overrides: Record<string, RecurringReviewOverride>,
   sourceTransactions: PlaidTransaction[],
   windowStart: Date,
-  windowEnd: Date
+  windowEnd: Date,
+  maxOccurrencesPerSeries = 24
 ): { events: PlannerEvent[]; blockedStreamTransactionIds: Set<string>; explicitNotRecurring: Set<string> } {
   const txById = new Map<string, PlaidTransaction>();
   for (const tx of sourceTransactions) {
@@ -202,7 +253,7 @@ function buildOverrideEvents(
     }
 
     let count = 0;
-    while (!isAfter(next, windowEnd) && count < 24) {
+    while (!isAfter(next, windowEnd) && count < maxOccurrencesPerSeries) {
       events.push({
         id: `override-${transactionId}-${count}`,
         source: 'override',
@@ -225,12 +276,14 @@ function isQualifiedPlaidStream(stream: PlaidTransactionStreamDoc): boolean {
   return stream.status?.toLowerCase() === 'mature' && stream.is_active !== false;
 }
 
-function buildPlaidStreamEvents(
+/** @param maxOccurrencesPerSeries Cap per stream (default 24 matches short planner windows). */
+export function buildPlaidStreamEvents(
   recurring: PlaidRecurringSnapshot,
   windowStart: Date,
   windowEnd: Date,
   blockedStreamTransactionIds: Set<string>,
-  explicitNotRecurring: Set<string>
+  explicitNotRecurring: Set<string>,
+  maxOccurrencesPerSeries = 24
 ): PlannerEvent[] {
   const events: PlannerEvent[] = [];
 
@@ -243,16 +296,13 @@ function buildPlaidStreamEvents(
       if (streamTxIds.some((id) => blockedStreamTransactionIds.has(id))) continue;
       if (!isQualifiedPlaidStream(stream)) continue;
 
-      let next = streamAnchorDate(stream, addDays(windowStart, -1));
+      let next = firstStreamOccurrenceInWindow(stream, windowStart, windowEnd);
       if (!next) continue;
-      while (isAfter(windowStart, next)) {
-        next = nextByStreamFrequency(next, stream.frequency);
-      }
       const amount = streamAmount(stream);
       if (amount <= 0) continue;
 
       let count = 0;
-      while (!isAfter(next, windowEnd) && count < 24) {
+      while (!isAfter(next, windowEnd) && count < maxOccurrencesPerSeries) {
         events.push({
           id: `stream-${stream.stream_id}-${count}`,
           source: 'plaid_stream',
